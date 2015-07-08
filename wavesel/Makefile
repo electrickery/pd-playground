@@ -12,12 +12,10 @@ wavesel~.class.sources := src/wavesel~.c $(hgui)
 
 datafiles = \
 wavesel~-help.pd \
-LICENSE.txt \
+../LICENSE.txt \
 README.txt \
-Makefile \
 voice.wav \
-voice2.wav \
-Makefile.pdlibbuilder
+voice2.wav 
 
 ################################################################################
 ### pdlibbuilder ###############################################################
@@ -27,7 +25,7 @@ Makefile.pdlibbuilder
 # Include Makefile.pdlibbuilder from this directory, or else from central
 # externals directory in pd-extended configuration.
 
-externalsdir = .
+externalsdir = ..
 
 include $(firstword $(wildcard Makefile.pdlibbuilder \
   $(externalsdir)/Makefile.pdlibbuilder))
