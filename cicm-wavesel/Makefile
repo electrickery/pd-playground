@@ -1,21 +1,22 @@
 # Makefile for pure data external wavesel~
 
-lib.name = wavesel~
 
-cflags = -Isrc/shared
+lib.name = cicm-wavesel
 
-hgui := \
-src/shared/hammer/gui.c \
-src/shared/common/loud.c
+cflags = -IThirdParty/CicmWrapper/Sources 
 
-wavesel~.class.sources := src/wavesel~.c $(hgui)
+includepath = -lCicmWrapper
+
+#c.blackboard.class.sources := Sources/c.blackboard.cpp c.library.cpp
+c.wavesel.class.sources := Sources/c.wavesel.cpp c.library.cpp
 
 datafiles = \
-wavesel~-help.pd \
-LICENSE.txt \
-README.txt \
-voice.wav \
-voice2.wav 
+Helps/c.wavesel-help.pd \
+../LICENSE.txt \
+README.txt
+
+#Helps/c.blackboard-help.pd \
+
 
 ################################################################################
 ### pdlibbuilder ###############################################################
