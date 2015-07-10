@@ -1,13 +1,14 @@
 
 #include "../c.library.hpp"
 
+#define BACKGROUNDLAYER "wavesel_background_layer"
+#define WAVEFORMLAYER   "wavesel_waveform_layer"
+
+
 typedef struct  _wavesel
 {
     t_ebox      j_box;
     t_rect      f_box;
-    t_elayer*   bg_layer;
-    t_elayer*   fg_layer;
-    t_elayer*   sel_layer;
     t_rect      bg_rect;
     t_rect      fg_rect;
 
@@ -42,74 +43,68 @@ t_eclass *wavesel_class;
 
 static void wavesel_setarrayprops(t_wavesel *x);
 static void wavesel_get_column_size(t_wavesel* x, int column, t_word *vec);
+static void wavesel_paint(t_wavesel *x, t_object *view);
 
 static void draw_background(t_wavesel *x,  t_object *view, t_rect *rect)
 {
     int i;
-    t_symbol* bg_layer_name = gensym("wavesel_background_layer");
+    t_symbol* bg_layer_name = gensym(BACKGROUNDLAYER);
     t_elayer *g = ebox_start_layer((t_ebox *)x, bg_layer_name, rect->width, rect->height);
-    ebox_paint_layer((t_ebox *)x, bg_layer_name, 0.f, 0.f);
-    x->bg_layer = g;
+    if (g)
+        ebox_paint_layer((t_ebox *)x, bg_layer_name, 0.f, 0.f);
+    else
+        post("c.wavesel/drawbackground: problem creating layer %s", 
+            bg_layer_name->s_name);
 }
 
 static void draw_waveform(t_wavesel *x,  t_object *view, t_rect *rect)
 {
-    int i;
-    int middle = (int)rect->height / 2;
-    int top = 1;
-    int bottom = 0;
-    
-    t_symbol* fg_layer_name = gensym("wavesel_waveform_layer");
-    ebox_invalidate_layer((t_ebox *)x, fg_layer_name);
-    t_elayer *g = ebox_start_layer((t_ebox *)x, fg_layer_name, rect->width, rect->height);
-    
-        egraphics_set_color_rgba(g, &x->f_color_waveform);
-        for(i = 0; i < rect->width; i++)
-        {
-            egraphics_line_fast(g, i, middle - top, i, middle + bottom);
-        }
-        ebox_end_layer((t_ebox*)x, fg_layer_name);
-
-    ebox_paint_layer((t_ebox *)x, fg_layer_name, 0.f, 0.f);
-    x->fg_layer = g;
-}
-
-static void redraw_waveform(t_wavesel *x,  t_object *view, t_rect *rect)
-{
-    if (!x->x_array)
-    {
-        post("redraw_waveform: no array defined!");
-        return;
-    }
-    int i;
-    int middle = (int)rect->height / 2;
-    int top;
-    int bottom;
-    
     t_garray *ax = x->x_array;
     t_word *vec;
     int size;
-    if (!garray_getfloatwords(ax, &size, &vec))
+    if (ax) // if an array is present, initially it isn't
     {
-        post("wavesel: couldn't read from array!");
-        return;
-    }
-
-    t_elayer *g = ebox_start_layer((t_ebox *)x, cream_sym_signal_layer, rect->width, rect->height);
-    
-        egraphics_set_color_rgba(g, &x->f_color_waveform);
-        for(i = 0; i < rect->width; i++)
+        if (!garray_getfloatwords(ax, &size, &vec))
         {
-            wavesel_get_column_size(x, i, vec);
-            top    = x->x_currentElementTop;
-            bottom = x->x_currentElementBottom;
-
-            egraphics_line_fast(g, i, middle - top, i, middle + bottom);
+            post("c.wavesel/draw_waveform: couldn't read from array!");
+            return;
         }
-        ebox_end_layer((t_ebox*)x, cream_sym_signal_layer);
+    }
+    int i;
+    int middle = (int)rect->height / 2;
+    t_float top = 1.f;
+    t_float bottom = 0.f;
+    int columns = (int)rect->width;
+    
+    t_symbol* fg_layer_name = gensym(WAVEFORMLAYER);
+    t_elayer *g = ebox_start_layer((t_ebox *)x, fg_layer_name, 
+        rect->width, rect->height);
+    if (g) 
+    {
+        egraphics_set_color_rgba(g, &x->f_color_waveform);
+        for(i = 0; i < columns; i++)
+        {
+            if (ax)
+            {
+                wavesel_get_column_size(x, i, vec);
+                top    = x->x_currentElementTop;
+                bottom = x->x_currentElementBottom;
 
-    ebox_paint_layer((t_ebox *)x, cream_sym_signal_layer, 0.f, 0.f);
-    x->fg_layer = g;
+                egraphics_line_fast(g, 
+                    i, (int)(middle + 0.5f - top * rect->height), 
+                    i, (int)(middle + 0.5f - bottom * rect->height));
+            }
+            else
+                egraphics_line_fast(g, i, middle - (int)top, i, 
+                    middle + (int)bottom);
+        }
+        ebox_end_layer((t_ebox*)x, fg_layer_name);
+    
+        ebox_paint_layer((t_ebox *)x, fg_layer_name, 0.f, 0.f);
+    }
+    else
+        post("c.wavesel/draw_waveform: problem creating layer %s", 
+            fg_layer_name->s_name);
 }
 
 static void wavesel_redraw(t_wavesel *x, t_object *view)
@@ -123,7 +118,13 @@ static void wavesel_redraw(t_wavesel *x, t_object *view)
     
     t_rect fg_rect;
     ebox_get_rect_for_view((t_ebox *)x, &fg_rect);
-    redraw_waveform(x, view, &x->fg_rect);
+    t_symbol* bg_layer_name = gensym(BACKGROUNDLAYER);
+    ebox_invalidate_layer((t_ebox *)x, bg_layer_name);
+    t_symbol* fg_layer_name = gensym(WAVEFORMLAYER);
+    ebox_invalidate_layer((t_ebox *)x, fg_layer_name);
+
+    wavesel_paint(x, view);
+    ebox_redraw((t_ebox *)x);
     x->fg_rect = fg_rect;
 }
 
@@ -174,7 +175,6 @@ static void wavesel_setarray(t_wavesel *x, t_symbol *s)
     {
         x->x_array = array;
         x->x_arraysize = garray_npoints(x->x_array);
-//        wavesel_setarrayprops(x, rect)
     } else {
         post("wavesel: no array \"%s\" (error %d)", 
             x->x_arrayname->s_name, array);
@@ -182,7 +182,6 @@ static void wavesel_setarray(t_wavesel *x, t_symbol *s)
         x->x_arraysize = 0;
         return;
     }
-//    wavesel_draw_columns(x, 0);
 }
 
 static void wavesel_setarrayprops(t_wavesel *x)
@@ -191,8 +190,7 @@ static void wavesel_setarrayprops(t_wavesel *x)
     x->x_outputFactor = x->x_samplesPerPixel / x->x_ksr;
 }
 
-static void wavesel_get_column_size(t_wavesel* x, int column, 
-    t_word *vec)
+static void wavesel_get_column_size(t_wavesel* x, int column, t_word *vec)
 {
     int sampleOffset   = (int)(column * x->x_samplesPerPixel);
     int sampleEndPoint = sampleOffset + (int)x->x_samplesPerPixel;
@@ -212,7 +210,7 @@ static void wavesel_get_column_size(t_wavesel* x, int column,
     }
     else
     {
-        x->x_currentElementTop = upper;
+        x->x_currentElementTop    = upper;
         x->x_currentElementBottom = lower;
     }
 }
@@ -227,12 +225,13 @@ static void wavesel_state(t_wavesel *x)
     post("x_samplesPerPixel: %f", x->x_samplesPerPixel);
     post("x_outputFactor: %f",    x->x_outputFactor);
     post("-");
-    post("bg_rect- x: %f, y: %f, width: %f, height: %f", x->bg_rect.x, x->bg_rect.y, x->bg_rect.width, x->bg_rect.height);
-    post("fg_rect- x: %f, y: %f, width: %f, height: %f", x->bg_rect.x, x->bg_rect.y, x->fg_rect.width, x->fg_rect.height);
+    post("bg_rect- x: %f, y: %f, width: %f, height: %f", x->bg_rect.x, 
+        x->bg_rect.y, x->bg_rect.width, x->bg_rect.height);
+    post("fg_rect- x: %f, y: %f, width: %f, height: %f", x->bg_rect.x, 
+        x->bg_rect.y, x->fg_rect.width, x->fg_rect.height);
     post("-");
-//    const char* name = (x->bg_layer->e_name->s_name) ? x->bg_layer->e_name->s_name : "-";
-//    post("bg_layer- name: %s, state: %d", name, x->bg_layer->e_state);
-//    post("fg_layer- name: %s, state: %d", x->fg_layer->e_name, x->fg_layer->e_state);
+    post("background layer name: %s", BACKGROUNDLAYER);
+    post("waveform layer name: %s", WAVEFORMLAYER);
 }
 
 static void *wavesel_new(t_symbol *s, int argc, t_atom *argv)
@@ -268,31 +267,30 @@ static void *wavesel_new(t_symbol *s, int argc, t_atom *argv)
     return (x);
 }
 
-
 static void wavesel_free(t_wavesel *x)
 {
     ebox_free((t_ebox *)x);
 
 }
 
-
 extern "C" void setup_c0x2ewavesel(void)
 {
     t_eclass *c;
     
-    c = eclass_new("c.wavesel", (method)wavesel_new, (method)wavesel_free, (short)sizeof(t_wavesel), 0L, A_GIMME, 0);
+    c = eclass_new("c.wavesel", (method)wavesel_new, 
+        (method)wavesel_free, (short)sizeof(t_wavesel), 0L, A_GIMME, 0);
     eclass_guiinit(c, 0);
 
-    eclass_addmethod(c, (method) wavesel_mousemove,       "mousemove",        A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_mousedrag,       "mousedrag",        A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_mousedown,       "mousedown",        A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_mouseup,         "mouseup",          A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_paint,           "paint",            A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_setarray,        "setarray",         A_SYMBOL, 0);
-    eclass_addmethod(c, (method) wavesel_state,           "state",            A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_redraw,          "redraw",           A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_mousemove, "mousemove", A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_mousedrag, "mousedrag", A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_mousedown, "mousedown", A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_mouseup,   "mouseup",   A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_paint,     "paint",     A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_setarray,  "setarray",  A_SYMBOL, 0);
+    eclass_addmethod(c, (method) wavesel_state,     "state",     A_NULL, 0);
+    eclass_addmethod(c, (method) wavesel_redraw,    "redraw",    A_NULL, 0);
     
-    CLASS_ATTR_RGBA                 (c, "sicolor", 0, t_wavesel, f_color_waveform);
+    CLASS_ATTR_RGBA      (c, "sicolor", 0, t_wavesel, f_color_waveform);
     CLASS_ATTR_LABEL                (c, "sicolor", 0, "Waveform Color");
     CLASS_ATTR_ORDER                (c, "sicolor", 0, "3");
     CLASS_ATTR_DEFAULT_SAVE_PAINT   (c, "sicolor", 0, "0. 0.6 0. 0.8");

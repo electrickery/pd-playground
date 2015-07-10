@@ -12,6 +12,8 @@ c.wavesel.class.sources := Sources/c.wavesel.cpp c.library.cpp
 
 datafiles = \
 Helps/c.wavesel-help.pd \
+Helps/voice.wav \
+Helps/voice2.wav \
 ../LICENSE.txt \
 README.txt
 
