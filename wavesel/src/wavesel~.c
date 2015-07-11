@@ -543,9 +543,10 @@ static void wavesel_selectmode_motion(t_wavesel *x)
 {   
     if (x->x_x > x->x_clickOrigin) // right side
     {
-        wavesel_color_columns(x, x->x_startcursor, x->x_clickOrigin, 0);
-        wavesel_color_columns(x, x->x_clickOrigin, x->x_x, 1);
+        wavesel_color_columns(x, x->x_startcursor, x->x_clickOrigin, 0); 
+        wavesel_color_columns(x, x->x_clickOrigin, x->x_x, 1); 
         wavesel_color_columns(x, x->x_x, x->x_endcursor, 0);
+//        wavesel_move_background_selection(x, x->x_clickOrigin + 1, x->x_x - x->x_clickOrigin);
         x->x_startcursor = x->x_clickOrigin;
         x->x_endcursor   = x->x_x;
         outlet_float(x->out4, x->x_x * x->x_outputFactor);
@@ -555,11 +556,12 @@ static void wavesel_selectmode_motion(t_wavesel *x)
         wavesel_color_columns(x, x->x_clickOrigin, x->x_endcursor, 0);
         wavesel_color_columns(x, x->x_x, x->x_clickOrigin, 1);
         wavesel_color_columns(x, x->x_startcursor, x->x_x, 0);
+//        wavesel_move_background_selection(x, x->x_x + 1,  x->x_clickOrigin - x->x_x);
         x->x_startcursor = x->x_x;
         x->x_endcursor   = x->x_clickOrigin;
         outlet_float(x->out3, x->x_x * x->x_outputFactor);
     }
-    wavesel_move_background_selection(x, x->x_startcursor,
+    wavesel_move_background_selection(x, x->x_startcursor + 1,
         x->x_endcursor - x->x_startcursor);
     outlet_float(x->out5, 2);    
 }
@@ -926,8 +928,8 @@ static void wavesel_state(t_wavesel* x)
     post("x_width: %d",           x->x_width);
     post("x_height: %d",          x->x_height);
     post("x_numelem: %d",         x->x_numelem);
-    post("x_startcursor (relative to canvas): %d",     x->x_startcursor);
-    post("x_endcursor (relative to canvas): %d",       x->x_endcursor);
+    post("x_startcursor (relative to canvas): %d, (%f ms)",     x->x_startcursor, x->x_startcursor * x->x_outputFactor);
+    post("x_endcursor (relative to canvas): %d, (%f ms)",       x->x_endcursor, x->x_endcursor * x->x_outputFactor);
     post("selected bg width: %d", x->x_endcursor - x->x_startcursor);
     post("x_startfg (absolute in element array): %d",  x->x_startfg);
     post("x_endfg (absolute in element array): %d",    x->x_endfg);
