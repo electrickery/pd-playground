@@ -1,14 +1,14 @@
-#N canvas 595 199 408 398 10;
+#N canvas 529 82 408 502 10;
 #X obj 6 24 c.patcherinfos;
 #X obj 7 15 c.loadmess;
 #X obj 1 3 c.help.header;
-#X obj 39 193 c.wavesel @size 322 82 @fontname "Helvetica" @fontweight
+#X obj 39 293 c.wavesel @size 322 82 @fontname "Helvetica" @fontweight
 "normal" @fontslant "roman" @fontsize 11 @receive "(null)" @send "(null)"
-@sicolor 0 0.6 0 0.8;
-#X floatatom 39 297 5 0 0 0 - - -, f 5;
-#X floatatom 144 297 5 0 0 0 - - -, f 5;
-#X floatatom 249 297 5 0 0 0 - - -, f 5;
-#X floatatom 355 297 5 0 0 0 - - -, f 5;
+@sicolor 0 0.6 0 0.8 @secolor 0.5 0.5 0.5 0.5;
+#X floatatom 39 397 5 0 0 0 - - -, f 5;
+#X floatatom 144 397 5 0 0 0 - - -, f 5;
+#X floatatom 249 397 5 0 0 0 - - -, f 5;
+#X floatatom 355 397 5 0 0 0 - - -, f 5;
 #X msg 39 113 state;
 #N canvas 1 83 450 300 voice 0;
 #X obj 120 98 soundfiler;
@@ -24,13 +24,13 @@
 #X connect 2 0 1 0;
 #X connect 3 0 0 0;
 #X connect 6 0 1 0;
-#X restore 337 330 pd voice;
+#X restore 337 430 pd voice;
 #X msg 269 121 setarray \$1-voice;
 #X obj 242 74 f \$0;
 #X obj 242 54 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
 -1;
 #X obj 242 96 t f f;
-#X msg 117 63 redraw;
+#X msg 81 149 redraw;
 #N canvas 1 84 450 300 voice2 0;
 #X obj 120 98 soundfiler;
 #X obj 120 49 f \$0;
@@ -45,12 +45,16 @@
 #X connect 2 0 1 0;
 #X connect 4 0 1 0;
 #X connect 6 0 0 0;
-#X restore 338 352 pd voice2;
+#X restore 338 452 pd voice2;
 #X obj 191 96 f \$0;
 #X obj 191 76 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
 -1;
 #X obj 191 118 t f f;
 #X msg 218 143 setarray \$1-voice2;
+#X msg 13 57 drawselection;
+#X msg 12 79 undrawselection;
+#X msg 187 213 invalidate wavesel_waveform_layer;
+#X msg 193 241 invalidate wavesel_background_layer;
 #X connect 0 0 2 0;
 #X connect 1 0 0 0;
 #X connect 3 0 4 0;
@@ -61,9 +65,15 @@
 #X connect 10 0 3 0;
 #X connect 11 0 13 0;
 #X connect 12 0 11 0;
+#X connect 13 0 14 0;
 #X connect 13 1 10 0;
 #X connect 14 0 3 0;
 #X connect 16 0 18 0;
 #X connect 17 0 16 0;
+#X connect 18 0 14 0;
 #X connect 18 1 19 0;
 #X connect 19 0 3 0;
+#X connect 20 0 3 0;
+#X connect 21 0 3 0;
+#X connect 22 0 3 0;
+#X connect 23 0 3 0;
