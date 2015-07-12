@@ -1,4 +1,4 @@
-#N canvas 529 82 408 502 10;
+#N canvas 527 83 408 502 10;
 #X obj 6 24 c.patcherinfos;
 #X obj 7 15 c.loadmess;
 #X obj 1 3 c.help.header;
@@ -46,15 +46,12 @@
 #X connect 4 0 1 0;
 #X connect 6 0 0 0;
 #X restore 338 452 pd voice2;
-#X obj 191 96 f \$0;
-#X obj 191 76 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+#X obj 122 75 f \$0;
+#X obj 122 55 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
 -1;
-#X obj 191 118 t f f;
-#X msg 218 143 setarray \$1-voice2;
+#X obj 122 97 t f f;
+#X msg 149 122 setarray \$1-voice2;
 #X msg 13 57 drawselection;
-#X msg 12 79 undrawselection;
-#X msg 187 213 invalidate wavesel_waveform_layer;
-#X msg 193 241 invalidate wavesel_background_layer;
 #X connect 0 0 2 0;
 #X connect 1 0 0 0;
 #X connect 3 0 4 0;
@@ -74,6 +71,3 @@
 #X connect 18 1 19 0;
 #X connect 19 0 3 0;
 #X connect 20 0 3 0;
-#X connect 21 0 3 0;
-#X connect 22 0 3 0;
-#X connect 23 0 3 0;
