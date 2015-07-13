@@ -1,10 +1,11 @@
-#N canvas 527 83 408 502 10;
+#N canvas 497 82 408 502 10;
 #X obj 6 24 c.patcherinfos;
 #X obj 7 15 c.loadmess;
 #X obj 1 3 c.help.header;
 #X obj 39 293 c.wavesel @size 322 82 @fontname "Helvetica" @fontweight
 "normal" @fontslant "roman" @fontsize 11 @receive "(null)" @send "(null)"
-@sicolor 0 0.6 0 0.8 @secolor 0.5 0.5 0.5 0.5;
+@bgcolor 0.739085 0.750942 0.750942 1 @bdcolor 0.5 0.5 0.5 1 @sicolor
+0 0.6 0 0.8 @secolor 0.5 0.5 0.5 0.5;
 #X floatatom 39 397 5 0 0 0 - - -, f 5;
 #X floatatom 144 397 5 0 0 0 - - -, f 5;
 #X floatatom 249 397 5 0 0 0 - - -, f 5;
@@ -30,7 +31,6 @@
 #X obj 242 54 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
 -1;
 #X obj 242 96 t f f;
-#X msg 81 149 redraw;
 #N canvas 1 84 450 300 voice2 0;
 #X obj 120 98 soundfiler;
 #X obj 120 49 f \$0;
@@ -52,6 +52,11 @@
 #X obj 122 97 t f f;
 #X msg 149 122 setarray \$1-voice2;
 #X msg 13 57 drawselection;
+#X obj 206 178 f \$0;
+#X obj 206 158 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144
+-1 -1;
+#X obj 206 200 t f f;
+#X msg 233 225 wavesel_setarray \$1-voice2;
 #X connect 0 0 2 0;
 #X connect 1 0 0 0;
 #X connect 3 0 4 0;
@@ -62,12 +67,13 @@
 #X connect 10 0 3 0;
 #X connect 11 0 13 0;
 #X connect 12 0 11 0;
-#X connect 13 0 14 0;
 #X connect 13 1 10 0;
-#X connect 14 0 3 0;
-#X connect 16 0 18 0;
-#X connect 17 0 16 0;
-#X connect 18 0 14 0;
-#X connect 18 1 19 0;
+#X connect 15 0 17 0;
+#X connect 16 0 15 0;
+#X connect 17 1 18 0;
+#X connect 18 0 3 0;
 #X connect 19 0 3 0;
-#X connect 20 0 3 0;
+#X connect 20 0 22 0;
+#X connect 21 0 20 0;
+#X connect 22 1 23 0;
+#X connect 23 0 3 0;

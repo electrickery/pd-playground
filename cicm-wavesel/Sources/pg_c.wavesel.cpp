@@ -125,27 +125,6 @@ static t_pd_err wavesel_setarray(t_wavesel *x, t_object *attr, int ac, t_atom *a
     return -1;
 }
 
-// set the array
-static void wavesel_sa(t_wavesel *x, t_symbol *s)
-{
-    t_garray *array;
-    x->x_arrayname = s;
-    
-    if ((array = (t_garray *)pd_findbyclass(x->x_arrayname, 
-        garray_class)))
-    {
-        x->x_array = array;
-//        x->x_arraysize = garray_npoints(x->x_array);
-    } else {
-        post("wavesel: no array \"%s\" (error %d)", 
-            x->x_arrayname->s_name, array);
-        x->x_array = 0;
-//        x->x_arraysize = 0;
-        return;
-    }
-}
-
-
 static void *wavesel_new(t_symbol *s, int argc, t_atom *argv)
 {
     t_wavesel *x = (t_wavesel *)eobj_new(wavesel_class);
@@ -188,7 +167,6 @@ extern "C" void setup_c0x2ewavesel(void)
     eclass_addmethod(c, (method) wavesel_mousedown, "mousedown", A_NULL, 0);
     eclass_addmethod(c, (method) wavesel_mouseup,   "mouseup",   A_NULL, 0);
     eclass_addmethod(c, (method) wavesel_paint,     "paint",     A_NULL, 0);
-    eclass_addmethod(c, (method) wavesel_sa,     "wavesel_setarray",     A_SYMBOL, 0);
     
     CLASS_ATTR_SYMBOL               (c, "array", 0, t_wavesel, x_arrayname);
     CLASS_ATTR_LABEL                (c, "array", 0, "Array Name");

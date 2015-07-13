@@ -4,8 +4,10 @@
 lib.name = cicm-wavesel
 
 cflags = -IThirdParty/CicmWrapper/Sources 
+# -I../../pd-0.46-6/src/
 
 includepath = -lCicmWrapper
+
 
 #c.blackboard.class.sources := Sources/c.blackboard.cpp c.library.cpp
 c.wavesel.class.sources := Sources/c.wavesel.cpp c.library.cpp
