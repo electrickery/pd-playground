@@ -120,6 +120,7 @@ typedef struct _wavesel
     int        x_mouseDown;
     t_float    x_linePosition;
     int        x_clipmode;
+    int        x_visCounter;
 } t_wavesel;
 
 // handle start
@@ -196,10 +197,12 @@ static void wavesel_create_rectangle(void* cv, void* o, int c, int x,
 //    wavesel_move_object(glist_getcanvas(x->x_glist), x, x->x_startbg,
 //        x->x_obj.te_xpix + e->x, x->x_obj.te_ypix + e->y,
 //        e->w, e->h);
-static void wavesel_move_object(void* cv, void* x, int c, int xx, int y,
-    int w,int h) {
+static void wavesel_move_object(void* cv, void* x, int num, int xx, int yy,
+    int w, int h) {
     sys_vgui(".x%lx.c coords %lx%d %d %d %d %d\n",
-                cv,          x, c, xx, y, xx+w,y+h);
+                cv,          x, num, xx, yy, xx + w, yy + h);
+//    post(".x%lx.c coords %lx/%d %d %d %d %d\n",
+//                cv,          x, num, xx, yy, xx + w, yy + h);
 }
 
 static void wavesel_color_object(void* cv, void* o, int c, char* color) 
@@ -264,6 +267,7 @@ static void wavesel_move_background_selection(t_wavesel *x, int xx,
     wavesel_move_object(glist_getcanvas(x->x_glist), x, x->x_startbg,
         x->x_obj.te_xpix + e->x, x->x_obj.te_ypix + e->y,
         e->w, e->h);
+//post("wavesel_move_background_selection x_startbg: %d", x->x_startbg);
 }
 
 
@@ -410,7 +414,8 @@ static void wavesel_deselect(t_wavesel* x, t_canvas *cv,
         -fill #%2.2x%2.2x%2.2x\n", cv, x->x_bgtag, WAVESEL_GRIDWIDTH,
         x->x_bgred, x->x_bggreen, x->x_bgblue);
     sys_vgui("destroy %s\n", wsh->h_pathname);
-    wsh->h_selectedmode = 0;  
+    wsh->h_selectedmode = 0; 
+    wsh->h_dragon = 0; 
 }
 
 static void wavesel_select(t_gobj *z, t_glist *glist, int state)
@@ -445,6 +450,7 @@ static void wavesel_select(t_gobj *z, t_glist *glist, int state)
         sys_vgui("bind %s <Motion> {pdsend [concat %s _motion %%x %%y \\;]}\n",
             wsh->h_pathname, wsh->h_bindsym->s_name);
         wsh->h_selectedmode = 1;
+        wsh->h_dragon = 1;
     }
     else
     {
@@ -461,6 +467,7 @@ static void wavesel_delete(t_gobj *z, t_glist *glist)
     t_text *x = (t_text *)z;
     canvas_deletelinesfor(glist, x);
 }
+
 
 #define FRAME 0       
 static void wavesel_vis(t_gobj *z, t_glist *glist, int vis)
@@ -482,12 +489,13 @@ static void wavesel_vis(t_gobj *z, t_glist *glist, int vis)
         x->x_element[FRAME]->h = x->x_height;
         x->x_element[FRAME]->w = x->x_width;
         wavesel_drawme(x, glist, 1);
-        post("wavesel_vis: vis");
+        x->x_visCounter++;
+//        post("wavesel_vis: vis %d", x->x_visCounter);
     }
     else
     {
         wavesel_erase(x, glist);
-        post("wavesel_vis: erase");
+//        post("wavesel_vis: erase");
     }
 }
 
@@ -563,6 +571,10 @@ static void wavesel_selectmode_motion(t_wavesel *x)
     }
     wavesel_move_background_selection(x, x->x_startcursor + 1,
         x->x_endcursor - x->x_startcursor);
+        
+    if (x->x_visCounter < 2)
+        wavesel_drawme(x, x->x_glist, 1);
+
     outlet_float(x->out5, 2);    
 }
 
@@ -610,6 +622,9 @@ static void wavesel_loopmode_motion(t_wavesel *x, t_floatarg dx,
     wavesel_move_background_selection(x, x->x_startcursor, 
         x->x_endcursor - x->x_startcursor);
         
+    if (x->x_visCounter < 2)
+        wavesel_drawme(x, x->x_glist, 1);
+        
     outlet_float(x->out3, (x->x_startcursor * x->x_outputFactor));
     outlet_float(x->out4, (x->x_endcursor * x->x_outputFactor));
     outlet_float(x->out5, 2);
@@ -638,7 +653,6 @@ static void wavesel_motion(t_wavesel *x, t_floatarg dx, t_floatarg dy)
              break;
         }
     }
-    wavesel_drawme(x, x->x_glist, 0);
 }
 
 void wavesel_key(t_wavesel *x, t_floatarg f)
@@ -659,6 +673,9 @@ static void wavesel_selectmode_click(t_wavesel *x)
     wavesel_color_rect_element(x, x->x_startbg, 
         x->x_bgselcolor->s_name, x->x_bgselcolor->s_name);
     wavesel_move_background_selection(x, x->x_x, 0);
+    
+    if (x->x_visCounter < 2)
+        wavesel_drawme(x, x->x_glist, 1);
 
     x->x_startcursor = x->x_x;
     x->x_endcursor   = x->x_x;
@@ -713,7 +730,6 @@ static void wavesel_click(t_wavesel *x,
             break;
         }
     }
-    wavesel_drawme(x, x->x_glist, 0);
 }
 
 static int wavesel_newclick(t_gobj *z, struct _glist *glist,
@@ -790,17 +806,6 @@ static void wavesel_column(t_wavesel* x, t_symbol* c, float xp, float y,
 static void wavesel_color(t_wavesel* x, t_symbol* c, float num)
 {
     wavesel_color_element(x,(int)num,c->s_name);
-}
-
-
-void wavesel_deletenum(t_wavesel* x,float num)
-{
-    int i = (int) num;
-    if (x->x_element[i]) {
-        wavesel_delete_element(x,i);
-        freebytes(x->x_element[i],sizeof(t_element));
-        x->x_element[i] = NULL;
-    }
 }
 
 // find extremes in the sample range represented by this column
@@ -915,11 +920,14 @@ static void wavesel_drawbase(t_wavesel* x)
     x->x_element[e]->type = RECT;
     x->x_element[e]->x = 1;
     x->x_element[e]->y = 1;
-    x->x_element[e]->w = 0;
+    x->x_element[e]->w = 1;
     x->x_element[e]->h = x->x_height - 3;
     x->x_element[e]->color = x->x_bgcolor->s_name;
     x->x_element[e]->outlinecolor = x->x_bgcolor->s_name;
     x->x_numelem++;
+    
+    x->x_visCounter = 0;
+
 }
   
 static void wavesel_state(t_wavesel* x) 
@@ -945,20 +953,22 @@ static void wavesel_state(t_wavesel* x)
     post("x_clockRunning: %d",    x->x_clockRunning);
     post("x_linePosition: %f",    x->x_linePosition);
     post("x_clipmode: %d",        x->x_clipmode);
-    post("-- base rectangle:");
+    post("visCounter: %d",        x->x_visCounter); // unspeakable hack to fix pre-restore update
+    post("-- background rectangle:");
     post(" x: %d", x->x_element[0]->x);
     post(" y: %d", x->x_element[0]->y);
     post(" w: %d", x->x_element[0]->w);
     post(" h: %d", x->x_element[0]->h);
     post(" color: %s", x->x_element[0]->color);
     post(" outlinecolor: %s", x->x_element[0]->outlinecolor);
-    post("-- background select rectangle:");
+    post("-- select rectangle:");
     post(" x: %d", x->x_element[x->x_startbg]->x);
     post(" y: %d", x->x_element[x->x_startbg]->y);
     post(" w: %d", x->x_element[x->x_startbg]->w);
     post(" h: %d", x->x_element[x->x_startbg]->h);
     post(" color: %s", x->x_element[x->x_startbg]->color);
     post(" outlinecolor: %s", x->x_element[x->x_startbg]->outlinecolor);
+    post(" id: %lx%d", x, x->x_startbg);
 }
 
 static void wavesel_setarray(t_wavesel *x, t_symbol *s)
@@ -1023,7 +1033,6 @@ static void wavesel_tick(t_wavesel *x)
 {
     if (!x->x_array && x->x_arrayname->s_name[0] != 0)
         wavesel_setarray(x, x->x_arrayname);
-//    post("tick: %s", x->x_arrayname->s_name);
     x->x_clockRunning = 0;
     if (x->x_bufRefresh == 0)
         return;
@@ -1107,7 +1116,8 @@ static void *wavesel_line(t_wavesel *x, t_float f)
     int column = (int)((x->x_linePosition / x->x_samplesPerPixel) * 
         x->x_ksr + 0.5);
         
-    if (column >= 0 && column <= size) {
+    if (column >= 0 && column <= size) 
+    {
         wavesel_color_element(x, column + x->x_startfg, 
             x->x_fgselcolor->s_name);
             
@@ -1206,6 +1216,8 @@ static void *wavesel_new(t_symbol* s, t_float w, t_float h)
 // init hammer for mouseUp (wavesel_doup)
     hammergui_bindmouse((t_pd *)x); 
     
+    x->x_visCounter = 0;
+    
     return (x);
 }
 
@@ -1238,8 +1250,6 @@ void wavesel_tilde_setup(void)
         gensym("setbgselcolor"), A_SYMBOL, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_reset_selection, 
         gensym("reset_selection"), 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_draw_columns, 
-        gensym("drawwf"), A_FLOAT, 0);
 
 // internal
     class_addmethod(wavesel_class, (t_method)wavesel_click, 
@@ -1250,8 +1260,6 @@ void wavesel_tilde_setup(void)
         gensym("rect"), A_SYMBOL, A_FLOAT, A_FLOAT, A_FLOAT,A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_color, 
         gensym("color"), A_SYMBOL, A_FLOAT, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_deletenum, 
-        gensym("delete"), A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_setmode, 
         gensym("setmode"), A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_state, 
@@ -1284,7 +1292,7 @@ void wavesel_tilde_setup(void)
     (t_method)waveselhandle__motionhook, gensym("_motion"), 
         A_FLOAT, A_FLOAT, 0);
     
-    post("wavesel~ 0.6 , a waveform~ wannabe, that isn't there yet...");
+    post("wavesel~ 0.7 , a waveform~ wannabe, that isn't there yet...");
     post("fjkraan@xs4all.nl, 2015-07-08");
 }
 
