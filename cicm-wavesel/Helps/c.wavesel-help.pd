@@ -1,11 +1,11 @@
-#N canvas 485 88 408 502 10;
+#N canvas 485 88 630 577 10;
 #X obj 6 24 c.patcherinfos;
 #X obj 7 15 c.loadmess;
 #X obj 1 3 c.help.header;
 #X obj 39 293 c.wavesel @size 322 82 @fontname "Helvetica" @fontweight
 "normal" @fontslant "roman" @fontsize 11 @receive "(null)" @send "(null)"
-@bgcolor 0.739085 0.750942 0.750942 1 @bdcolor 0.5 0.5 0.5 1 @sicolor
-0 0.6 0 0.8 @secolor 0.8 0 0 0.5;
+@bgcolor 0.739085 0.750942 0.750942 1 @bdcolor 0.5 0.5 0.5 1 @wacolor
+0 0.6 0 0.8 @secolor 0 0.114617 0.802322 0.5 @mode "select";
 #X floatatom 39 397 5 0 0 0 - - -, f 5;
 #X floatatom 144 397 5 0 0 0 - - -, f 5;
 #X floatatom 249 397 5 0 0 0 - - -, f 5;
@@ -58,6 +58,14 @@
 #X msg 248 215 -10;
 #X msg 283 215 10;
 #X msg 248 249 resize \$1;
+#X msg 399 185 mode \$1;
+#X obj 414 100 c.menu @size 100 17 @fontname "Helvetica" @fontweight
+"normal" @fontslant "roman" @fontsize 11 @receive "(null)" @send "(null)"
+@presetname "(null)" @hover 0 @items "none" "select" "loop" "move"
+"draw" @states 0 0 0 0 0 @bgcolor 0.75 0.75 0.75 1 @bdcolor 0.5 0.5
+0.5 1 @textcolor 0 0 0 1;
+#X msg 436 151 1;
+#X msg 476 151 select;
 #X connect 0 0 2 0;
 #X connect 1 0 0 0;
 #X connect 3 0 4 0;
@@ -80,3 +88,7 @@
 #X connect 23 0 25 0;
 #X connect 24 0 25 0;
 #X connect 25 0 3 0;
+#X connect 26 0 3 0;
+#X connect 27 0 26 0;
+#X connect 28 0 26 0;
+#X connect 29 0 26 0;
