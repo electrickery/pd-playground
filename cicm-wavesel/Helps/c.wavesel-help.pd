@@ -1,16 +1,15 @@
-#N canvas 481 90 408 502 10;
+#N canvas 249 122 630 577 10;
 #X obj 6 24 c.patcherinfos;
 #X obj 7 15 c.loadmess;
 #X obj 1 3 c.help.header;
-#X obj 39 293 c.wavesel @size 322 82 @fontname "Helvetica" @fontweight
+#X obj 39 289 c.wavesel @size 523 82 @fontname "Helvetica" @fontweight
 "normal" @fontslant "roman" @fontsize 11 @receive "(null)" @send "(null)"
-@bgcolor 0.739085 0.750942 0.750942 1 @bdcolor 0.5 0.5 0.5 1 @sicolor
-0 0.6 0 0.8 @secolor 0.8 0 0 0.5;
-#X floatatom 39 397 5 0 0 0 - - -, f 5;
-#X floatatom 144 397 8 0 0 0 - - -, f 8;
-#X floatatom 249 397 8 0 0 0 - - -, f 8;
-#X floatatom 355 397 8 0 0 0 - - -, f 8;
-#X msg 39 52 state;
+;
+#X floatatom 39 397 8 0 0 0 - - -, f 8;
+#X floatatom 211 397 8 0 0 0 - - -, f 8;
+#X floatatom 384 397 8 0 0 0 - - -, f 8;
+#X floatatom 516 397 8 0 0 0 - - -, f 8;
+#X msg 39 113 state;
 #N canvas 1 83 450 300 voice 0;
 #X obj 120 98 soundfiler;
 #X obj 120 49 f \$0;
@@ -51,16 +50,24 @@
 -1;
 #X obj 122 97 t f f;
 #X msg 149 122 setarray \$1-voice2;
-#X msg 51 166 doselect;
-#X msg 170 249 move \$1;
-#X msg 170 215 -10;
-#X msg 205 215 10;
-#X msg 248 215 -10;
-#X msg 283 215 10;
-#X msg 248 249 resize \$1;
-#X obj 12 52 vradio 15 1 0 5 empty empty empty 0 -8 0 10 -262144 -1
--1 3;
-#X msg 12 132 setmode \$1;
+#X msg 399 185 mode \$1;
+#X obj 399 59 c.menu @size 100 14 @fontname "Helvetica" @fontweight
+"normal" @fontslant "roman" @fontsize 11 @receive "(null)" @send "(null)"
+@presetname "(null)" @hover 0 @items "none" "select" "loop" "move"
+"draw" @states 0 0 0 0 0 @bgcolor 0.75 0.75 0.75 1 @bdcolor 0.5 0.5
+0.5 1 @textcolor 0 0 0 1;
+#X msg 415 92 1;
+#X msg 416 112 2;
+#X msg 416 132 3;
+#X msg 417 152 4;
+#X msg 451 92 select;
+#X msg 451 151 draw;
+#X msg 452 131 move;
+#X msg 451 112 loop;
+#X msg 493 115 wavesel_sym_loop;
+#X msg 401 230 setmode \$1;
+#X obj 401 210 hradio 15 1 0 5 empty empty empty 0 -8 0 10 -262144
+-1 -1 1;
 #X connect 0 0 2 0;
 #X connect 1 0 0 0;
 #X connect 3 0 4 0;
@@ -77,11 +84,15 @@
 #X connect 17 1 18 0;
 #X connect 18 0 3 0;
 #X connect 19 0 3 0;
-#X connect 20 0 3 0;
-#X connect 21 0 20 0;
-#X connect 22 0 20 0;
-#X connect 23 0 25 0;
-#X connect 24 0 25 0;
-#X connect 25 0 3 0;
-#X connect 26 0 27 0;
-#X connect 27 0 3 0;
+#X connect 20 0 19 0;
+#X connect 21 0 19 0;
+#X connect 22 0 19 0;
+#X connect 23 0 19 0;
+#X connect 24 0 19 0;
+#X connect 25 0 19 0;
+#X connect 26 0 19 0;
+#X connect 27 0 19 0;
+#X connect 28 0 19 0;
+#X connect 29 0 19 0;
+#X connect 30 0 3 0;
+#X connect 31 0 30 0;
