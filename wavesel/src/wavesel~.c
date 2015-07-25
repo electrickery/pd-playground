@@ -983,6 +983,7 @@ static void wavesel_setarray(t_wavesel *x, t_symbol *s)
     outlet_float(x->out3, x->canvas_startcursor * x->outlet_outputFactor);
     outlet_float(x->out4, x->canvas_endcursor   * x->outlet_outputFactor);
     wavesel_draw_columns(x);
+    wavesel_drawme(x, x->x_glist, 0);
 }
 
 static void wavesel_setForegroundColor(t_wavesel *x, t_symbol *s)
