@@ -11,6 +11,8 @@ typedef struct  _wavesel
     t_garray*   x_array;
     t_symbol*   x_arrayname;
     int         x_arraysize;
+    int         x_arrayStartView;
+    int         x_arrayEndView;
     t_float     x_samplesPerColumn;
     t_float     x_ksr;
     t_float     x_outputFactor;
@@ -408,7 +410,9 @@ static void wavesel_setarray(t_wavesel *x, t_symbol *s)
         garray_class)))
     {
         x->x_array = array;
-//        x->x_arraysize = garray_npoints(x->x_array);
+        x->x_arraysize = garray_npoints(x->x_array);
+        x->x_arrayStartView = 0;
+        x->x_arrayEndView = x->x_arraysize;
     } else {
         post("wavesel: no array \"%s\" (error %d)", 
             x->x_arrayname->s_name, array);
