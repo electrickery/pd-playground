@@ -4,6 +4,7 @@
 
 #include "m_pd.h"
 #include "g_canvas.h"
+#include "s_stuff.h"
 #include "hammer/gui.h"  // just for the mouse-up, silly!
 
 /* ------------------------ wavesel ----------------------------- */
@@ -27,6 +28,8 @@ static t_class *waveselhandle_class;
 #define BGSELCOLOR "black"
 #define FGCOLOR    "gray"
 #define FGSELCOLOR "green"
+#define MAX5BACKGROUND "#d7bd6e"
+#define MAX5SELECTEDBACKGROUND "6b5e37"
 
 // setmodes
 #define MODE_NONE   0  // does nothing
@@ -42,6 +45,7 @@ static t_class *waveselhandle_class;
 #define WAVESEL_SELCOLOR     "#8080ff"
 #define WAVESELHANDLE_WIDTH  10
 #define WAVESELHANDLE_HEIGHT 10
+#define WAVESELHANDLE_COLOR  ""
 #define WAVESEL_GRIDWIDTH    0.9
 #define WAVESEL_MINWIDTH     42
 #define WAVESEL_MINHEIGHT    22
@@ -74,53 +78,46 @@ typedef struct _wavesel
     t_outlet*  out4;
     t_outlet*  out5;
     t_outlet*  out6;
-    int        x_width;
-    int        x_height;
-    int        x_x;
-    int        x_y;
-    t_element* x_element[MAXELEM];
-    int        x_numelem;
-    t_symbol  *x_selector;
-    int        x_startcursor;  // relative to left of canvas
-    int        x_endcursor;    // relative to left of canvas
-    int        x_clickOrigin;
-    int        x_startfg;      // absolute in element array
-    int        x_endfg;        // absolute in element array
-    int        x_startbg;      // absolute in element array
-    int        x_endbg;        // not used anymore
-    t_symbol  *x_arrayname;
-    int        x_last_selected;
-    int        x_arraysize;
-    t_garray  *x_array;
-    t_float    x_samplesPerPixel;
-    t_float    x_ksr;
-    t_float    x_currentElementTop;
+    int        canvas_width;
+    int        canvas_height;
+    t_float    canvas_x;
+    t_float    canvas_y;
+    t_element* canvas_element[MAXELEM];
+    int        canvas_numelem;
+//    t_symbol  *x_selector;
+    int        canvas_startcursor;  // relative to left of canvas
+    int        canvas_endcursor;    // relative to left of canvas
+    int        canvas_clickOrigin;
+    int        canvas_startForeground;      // absolute in element array
+    int        canvas_endForeground;        // absolute in element array
+    int        canvas_selectBackground;      // absolute in element array
+//    int        x_endbg;        // not used anymore
+    t_symbol  *array_name;
+//    int        x_last_selected;
+    int        array_size;
+    t_garray  *array;
+    t_float    canvas_samplesPerColumn;
+    t_float    system_ksr;
+    t_float    canvas_columnTop;
     t_float    x_currentElementBottom;
-    t_symbol  *x_fgcolor;
-    t_symbol  *x_bgcolor;
-    t_symbol  *x_fgselcolor;
-    t_symbol  *x_bgselcolor;
-    t_pd      *x_handle;  
-    char       x_fgtag[TAGBUFFER];
-    char       x_bgtag[TAGBUFFER];
-    char       x_gridtag[TAGBUFFER];
-    char       x_tag[TAGBUFFER];
-    unsigned char  x_fgred;
-    unsigned char  x_fggreen;
-    unsigned char  x_fgblue;
-    unsigned char  x_bgred;
-    unsigned char  x_bggreen;
-    unsigned char  x_bgblue;
-    t_canvas  *x_canvas;
-    int        x_mode;
-    t_float    x_outputFactor;
-    double   x_bufRefresh;
-    t_clock   *x_clock;
-    int        x_clockRunning;
-    int        x_mouseDown;
-    t_float    x_linePosition;
-    int        x_clipmode;
-    int        x_visCounter;
+    t_symbol  *canvas_foregroundColor;
+    t_symbol  *canvas_backgroundColor;
+    t_symbol  *canvas_foregroundSelectedColor;
+    t_symbol  *canvas_backgroundSelectedColor;
+    t_pd      *editHandle;  
+    char       canvas_foregroundTag[TAGBUFFER];
+    char       canvas_backgroundTag[TAGBUFFER];
+    char       canvas_gridTag[TAGBUFFER];
+    char       canvas_allTag[TAGBUFFER]; 
+    t_canvas  *canvas;
+    int        mode;
+    t_float    outlet_outputFactor;
+    double     array_viewRefresh;
+    t_clock   *system_clock;
+    int        system_clockRunning;
+    int        canvas_mouseDown;
+    t_float    canvas_linePosition;
+    int        canvas_clipmode;
 } t_wavesel;
 
 // handle start
@@ -148,16 +145,16 @@ typedef struct _waveselhandle
 static void wavesel_drawbase(t_wavesel* x);
 void wavesel_drawme(t_wavesel *x, t_glist *glist, int firsttime);
 static void wavesel_draw_foreground(t_wavesel* x);
-static void wavesel_draw_columns(t_wavesel* x, t_float f);
+static void wavesel_draw_columns(t_wavesel* x);
 static void wavesel_setarray(t_wavesel *x, t_symbol *s);
-
+static void wavesel_vis(t_gobj *z, t_glist *glist, int vis);
 
 static void wavesel_setmode(t_wavesel *x, t_float mode)
 {
     if (mode < 0 || mode > 4) return;
-    x->x_mode = (int)mode;
-    if (x->x_mode == 3 || x->x_mode == 4)
-        post("wavesel: mode %d not implemented yet", x->x_mode);
+    x->mode = (int)mode;
+    if (x->mode == 3 || x->mode == 4)
+        post("wavesel: mode %d not implemented yet", x->mode);
 }
 
 static t_canvas *wavesel_getcanvas(t_wavesel *x, t_glist *glist)
@@ -167,42 +164,33 @@ static t_canvas *wavesel_getcanvas(t_wavesel *x, t_glist *glist)
 	post("wavesel_getcanvas: glist error");
 	x->x_glist = glist;
     }
-    return (x->x_canvas = glist_getcanvas(glist));
+    return (x->canvas = glist_getcanvas(glist));
 }
 
 static t_canvas *wavesel_isvisible(t_wavesel *x)
 {
-    return (glist_isvisible(x->x_glist) ? x->x_canvas : 0);
+    return (glist_isvisible(x->x_glist) ? x->canvas : 0);
 }
 
 static void wavesel_revis(t_wavesel *x)
 {
-    sys_vgui(".x%lx.c delete %s\n", x->x_canvas, x->x_tag);
-
-    t_waveselhandle *wsh = (t_waveselhandle *)x->x_handle;
+    sys_vgui(".x%lx.c delete %s\n", x->canvas, x->canvas_allTag);
 
     wavesel_drawme(x, x->x_glist, 0);
-post("revis");
 }
 
-// add "-outline #color#" for selection rectangle only
 static void wavesel_create_rectangle(void* cv, void* o, int c, int x, 
     int y, int w, int h, char* color, char* outlinecolor) 
 {
-//    sys_vgui(".x%lx.c create rectangle %d %d %d %d -tags %lx%d -fill %s\n",
-//                cv,                    x, y, x+w,y+h,    o, c,   color);
     sys_vgui(".x%lx.c create rectangle %d %d %d %d -tags %lx%d -fill %s -outline %s\n",
                 cv,                    x, y, x+w,y+h,    o, c,   color, outlinecolor);
 }
-//    wavesel_move_object(glist_getcanvas(x->x_glist), x, x->x_startbg,
-//        x->x_obj.te_xpix + e->x, x->x_obj.te_ypix + e->y,
-//        e->w, e->h);
-static void wavesel_move_object(void* cv, void* x, int num, int xx, int yy,
-    int w, int h) {
+
+static void wavesel_move_object(void* cv, void* x, int c, int xx, int y,
+    int w,int h) {
     sys_vgui(".x%lx.c coords %lx%d %d %d %d %d\n",
-                cv,          x, num, xx, yy, xx + w, yy + h);
-//    post(".x%lx.c coords %lx/%d %d %d %d %d\n",
-//                cv,          x, num, xx, yy, xx + w, yy + h);
+                cv,          x, c, xx, y, xx+w,y+h);
+    sys_pollgui();
 }
 
 static void wavesel_color_object(void* cv, void* o, int c, char* color) 
@@ -231,7 +219,7 @@ static void wavesel_create_column(void* cv, void* o, int c, int x, int y,
 
 static void wavesel_draw_element(t_wavesel *x, int num)
 {
-    t_element* e = x->x_element[num];
+    t_element* e = x->canvas_element[num];
     if (!e) post("wavesel_draw_element assertion failed");
     switch (e->type) {
     case RECT:
@@ -251,7 +239,7 @@ static void wavesel_draw_element(t_wavesel *x, int num)
 
 static void wavesel_move_element(t_wavesel *x, int num)
 {
-    t_element* e = x->x_element[num];
+    t_element* e = x->canvas_element[num];
     wavesel_move_object(
         glist_getcanvas(x->x_glist), x, num,
         x->x_obj.te_xpix + e->x, x->x_obj.te_ypix + e->y,
@@ -261,13 +249,12 @@ static void wavesel_move_element(t_wavesel *x, int num)
 static void wavesel_move_background_selection(t_wavesel *x, int xx, 
     int w)
 {
-    t_element* e = x->x_element[x->x_startbg];
+    t_element* e = x->canvas_element[x->canvas_selectBackground];
     e->x = xx;
     e->w = w;
-    wavesel_move_object(glist_getcanvas(x->x_glist), x, x->x_startbg,
+    wavesel_move_object(glist_getcanvas(x->x_glist), x, x->canvas_selectBackground,
         x->x_obj.te_xpix + e->x, x->x_obj.te_ypix + e->y,
         e->w, e->h);
-//post("wavesel_move_background_selection x_startbg: %d", x->x_startbg);
 }
 
 
@@ -279,7 +266,7 @@ static void wavesel_delete_element(t_wavesel *x, int num)
 
 static void wavesel_color_element(t_wavesel* x, int num, char* color)
 {
-    t_element* e = x->x_element[num];
+    t_element* e = x->canvas_element[num];
     e->color = color;
     wavesel_color_object(glist_getcanvas(x->x_glist), x, num, color); 
 }
@@ -288,7 +275,7 @@ static void wavesel_color_element(t_wavesel* x, int num, char* color)
 static void wavesel_color_rect_element(t_wavesel* x, int num, char* color,
     char* outlinecolor)
 {
-    t_element* e = x->x_element[num];
+    t_element* e = x->canvas_element[num];
     e->color = color;
     e->outlinecolor = outlinecolor;
     wavesel_color_rect_object(glist_getcanvas(x->x_glist), x, num, color, outlinecolor); 
@@ -300,7 +287,7 @@ void wavesel_drawme(t_wavesel *x, t_glist *glist, int firsttime)
 {
     int i;
 
-    for (i = 0; i < x->x_numelem; i++)
+    for (i = 0; i < x->canvas_numelem; i++)
     {
         if (firsttime)
             wavesel_draw_element(x, i);
@@ -314,26 +301,26 @@ void wavesel_drawme(t_wavesel *x, t_glist *glist, int firsttime)
 	nplus = (n == 1 ? 1 : n-1);
 	for (i = 0; i < n; i++)
 	{
-	    int onset = x->x_obj.te_xpix + (x->x_width - IOWIDTH) * i / 
+	    int onset = x->x_obj.te_xpix + (x->canvas_width - IOWIDTH) * i / 
             nplus;
 	    if (firsttime)
 		sys_vgui(".x%lx.c create rectangle %d %d %d %d -tags %lxo%d\n",
 		    glist_getcanvas(glist),
-		    onset, x->x_obj.te_ypix + x->x_height - WAVESEL_XLETHEIGHT,
-		    onset + IOWIDTH, x->x_obj.te_ypix + x->x_height,
+		    onset, x->x_obj.te_ypix + x->canvas_height - WAVESEL_XLETHEIGHT,
+		    onset + IOWIDTH, x->x_obj.te_ypix + x->canvas_height,
 		    x, i);
 	    else
 		sys_vgui(".x%lx.c coords %lxo%d %d %d %d %d\n",
 		     glist_getcanvas(glist), x, i,
-		     onset, x->x_obj.te_ypix + x->x_height - WAVESEL_XLETHEIGHT,
-		     onset + IOWIDTH, x->x_obj.te_ypix + x->x_height);
+		     onset, x->x_obj.te_ypix + x->canvas_height - WAVESEL_XLETHEIGHT,
+		     onset + IOWIDTH, x->x_obj.te_ypix + x->canvas_height);
 	}
 	/* inlets */
 	n = 1; 
 	nplus = (n == 1 ? 1 : n-1);
 	for (i = 0; i < n; i++)
 	{
-	    int onset = x->x_obj.te_xpix + (x->x_width - IOWIDTH) * i / 
+	    int onset = x->x_obj.te_xpix + (x->canvas_width - IOWIDTH) * i / 
             nplus;
 	    if (firsttime)
 		sys_vgui(".x%lx.c create rectangle %d %d %d %d -tags %lxi%d\n",
@@ -354,7 +341,7 @@ void wavesel_erase(t_wavesel* x, t_glist* glist)
 {
     int n, i;
 
-    for (i = 0; i < x->x_numelem; i++)
+    for (i = 0; i < x->canvas_numelem; i++)
          wavesel_delete_element(x, i);
 
      n = 3;
@@ -362,9 +349,9 @@ void wavesel_erase(t_wavesel* x, t_glist* glist)
          sys_vgui(".x%lx.c delete %lxo%d\n", 
              glist_getcanvas(glist), x, n);
      }
-     x->x_numelem = 0;
-     if (x->x_clockRunning)
-         clock_free(x->x_clock);
+     x->canvas_numelem = 0;
+     if (x->system_clockRunning)
+         clock_free(x->system_clock);
      hammergui_unbindmouse((t_pd *)x);
 }
 
@@ -379,8 +366,8 @@ static void wavesel_getrect(t_gobj *z, t_glist *owner,
     int width, height;
     t_wavesel* s = (t_wavesel*)z;
 
-    width = s->x_width;
-    height = s->x_height;
+    width = s->canvas_width;
+    height = s->canvas_height;
     *xp1 = s->x_obj.te_xpix;
     *yp1 = s->x_obj.te_ypix;
     *xp2 = s->x_obj.te_xpix + width;
@@ -399,32 +386,32 @@ static void wavesel_displace(t_gobj *z, t_glist *glist,
 
 static void wavesel_redraw_all(t_wavesel* x)
 {
-        wavesel_erase(x, x->x_glist);
+//        wavesel_erase(x, x->x_glist);
         
         wavesel_drawbase(x);
         wavesel_draw_foreground(x);
-        wavesel_setarray(x, x->x_arrayname);
-        wavesel_draw_columns(x, 1);
+        wavesel_setarray(x, x->array_name);
+        wavesel_draw_columns(x);
 }
 
 static void wavesel_deselect(t_wavesel* x, t_canvas *cv, 
     t_waveselhandle *wsh)
 {
     sys_vgui(".x%lx.c itemconfigure %s -outline black -width %f\
-        -fill #%2.2x%2.2x%2.2x\n", cv, x->x_bgtag, WAVESEL_GRIDWIDTH,
-        x->x_bgred, x->x_bggreen, x->x_bgblue);
+        -fill #%2.2x000000\n", cv, x->canvas_backgroundTag, WAVESEL_GRIDWIDTH);
     sys_vgui("destroy %s\n", wsh->h_pathname);
-    wsh->h_selectedmode = 0; 
-    wsh->h_dragon = 0; 
+    wsh->h_selectedmode = 0;  
 }
 
+// canvas is selected in edit mode
 static void wavesel_select(t_gobj *z, t_glist *glist, int state)
 {
     t_wavesel *x = (t_wavesel *)z;
      
 // handle start     
     t_canvas *cv = wavesel_getcanvas(x, glist);
-    t_waveselhandle *wsh = (t_waveselhandle *)x->x_handle;
+    t_waveselhandle *wsh = (t_waveselhandle *)x->editHandle;
+post("select: selected");        
     if (state)
     {
         if (wsh->h_selectedmode) // prevent re-selection
@@ -434,7 +421,7 @@ static void wavesel_select(t_gobj *z, t_glist *glist, int state)
         wavesel_getrect(z, glist, &x1, &y1, &x2, &y2);
 
         sys_vgui(".x%lx.c itemconfigure %s -outline blue -width %f -fill %s\n",
-            cv, x->x_bgtag, WAVESEL_SELBDWIDTH, WAVESEL_SELCOLOR);
+            cv, x->canvas_backgroundTag, WAVESEL_SELBDWIDTH, WAVESEL_SELCOLOR);
         sys_vgui("canvas %s -width %d -height %d -bg #fedc00 -bd 0\n",
             wsh->h_pathname, WAVESELHANDLE_WIDTH, WAVESELHANDLE_HEIGHT);
             sys_vgui(".x%lx.c create window %f %f -anchor nw\
@@ -442,7 +429,7 @@ static void wavesel_select(t_gobj *z, t_glist *glist, int state)
              cv, x2 - (WAVESELHANDLE_WIDTH - WAVESEL_SELBDWIDTH),
              y2 - (WAVESELHANDLE_HEIGHT - WAVESEL_SELBDWIDTH),
             WAVESELHANDLE_WIDTH, WAVESELHANDLE_HEIGHT,
-            wsh->h_pathname, x->x_tag);
+            wsh->h_pathname, x->canvas_allTag);
         sys_vgui("bind %s <Button> {pdsend [concat %s _click 1 \\;]}\n",
             wsh->h_pathname, wsh->h_bindsym->s_name);
         sys_vgui("bind %s <ButtonRelease> {pdsend [concat %s _click 0 \\;]}\n",
@@ -450,13 +437,12 @@ static void wavesel_select(t_gobj *z, t_glist *glist, int state)
         sys_vgui("bind %s <Motion> {pdsend [concat %s _motion %%x %%y \\;]}\n",
             wsh->h_pathname, wsh->h_bindsym->s_name);
         wsh->h_selectedmode = 1;
-        wsh->h_dragon = 1;
     }
     else
     {
+post("select: deselected");        
         wavesel_deselect(x, cv, wsh);
-        
-        wavesel_redraw_all(x);
+        wavesel_vis(x, x->x_glist, 1);
     }
 // handle end     
 }
@@ -468,34 +454,31 @@ static void wavesel_delete(t_gobj *z, t_glist *glist)
     canvas_deletelinesfor(glist, x);
 }
 
-
 #define FRAME 0       
 static void wavesel_vis(t_gobj *z, t_glist *glist, int vis)
 {
     t_wavesel* x = (t_wavesel*)z;
     t_canvas *cv = wavesel_getcanvas(x, glist);
-    t_waveselhandle *wsh = (t_waveselhandle *)x->x_handle;
+    t_waveselhandle *wsh = (t_waveselhandle *)x->editHandle;
     
     if (wsh->h_selectedmode)
         return;
         
-    if (!x->x_numelem)
+    if (!x->canvas_numelem)
         return;
     
     sprintf(wsh->h_pathname, ".x%lx.h%lx", (unsigned long)cv, 
         (unsigned long)wsh);
     if (vis)
     {
-        x->x_element[FRAME]->h = x->x_height;
-        x->x_element[FRAME]->w = x->x_width;
+        x->canvas_element[FRAME]->h = x->canvas_height;
+        x->canvas_element[FRAME]->w = x->canvas_width;
         wavesel_drawme(x, glist, 1);
-        x->x_visCounter++;
-//        post("wavesel_vis: vis %d", x->x_visCounter);
     }
     else
     {
         wavesel_erase(x, glist);
-//        post("wavesel_vis: erase");
+        post("vis: erase");
     }
 }
 
@@ -520,182 +503,170 @@ static void wavesel_color_columns(t_wavesel *x, int _s, int _e,
     for (i = start; i <= end; i++)
     {
         if (select)
-             wavesel_color_element(x, i + x->x_startfg, 
-                 x->x_fgselcolor->s_name);
+             wavesel_color_element(x, i + x->canvas_startForeground, 
+                 x->canvas_foregroundSelectedColor->s_name);
         else
-             wavesel_color_element(x, i + x->x_startfg, 
-                 x->x_fgcolor->s_name);
+             wavesel_color_element(x, i + x->canvas_startForeground, 
+                 x->canvas_foregroundColor->s_name);
     }
     // background selected rectangle
-    wavesel_color_rect_element(x, x->x_startbg, x->x_bgselcolor->s_name,
-        x->x_bgselcolor->s_name);
-    wavesel_move_background_selection(x, x->x_startcursor, 
-        x->x_endcursor - x->x_startcursor);
-
+    wavesel_color_rect_element(x, x->canvas_selectBackground, x->canvas_backgroundSelectedColor->s_name,
+        x->canvas_backgroundSelectedColor->s_name);
+    wavesel_move_background_selection(x, x->canvas_startcursor, 
+        x->canvas_endcursor - x->canvas_startcursor);
 }
 
 static void wavesel_color_all_columns(t_wavesel *x)
 {
-    int i;
-    int size = x->x_endfg - x->x_startfg;
-    if (x->x_endcursor == 0)
+    int size = x->canvas_endForeground - x->canvas_startForeground;
+    if (x->canvas_endcursor == 0)
         wavesel_reset_selection(x);
     else {
-        wavesel_color_columns(x, 0, x->x_startcursor, 0);
-        wavesel_color_columns(x, x->x_startcursor, x->x_endcursor, 1);
-        wavesel_color_columns(x, x->x_endcursor, size, 0);
+        wavesel_color_columns(x, 0, x->canvas_startcursor, 0);
+        wavesel_color_columns(x, x->canvas_startcursor, x->canvas_endcursor, 1);
+        wavesel_color_columns(x, x->canvas_endcursor, size, 0);
     }
 }
 
-static void wavesel_selectmode_motion(t_wavesel *x)
+static void wavesel_motion_selectmode(t_wavesel *x, t_floatarg dx)
 {   
-    if (x->x_x > x->x_clickOrigin) // right side
+    x->canvas_x += dx;
+    x->canvas_x = (floor(x->canvas_x)  < 0) ? x->canvas_startcursor : x->canvas_x;
+    x->canvas_x = (floor(x->canvas_x + 0.5f) > x->canvas_endForeground) ? x->canvas_endForeground : x->canvas_x;
+
+    if (x->canvas_x > x->canvas_clickOrigin) // right side
     {
-        wavesel_color_columns(x, x->x_startcursor, x->x_clickOrigin, 0); 
-        wavesel_color_columns(x, x->x_clickOrigin, x->x_x, 1); 
-        wavesel_color_columns(x, x->x_x, x->x_endcursor, 0);
-//        wavesel_move_background_selection(x, x->x_clickOrigin + 1, x->x_x - x->x_clickOrigin);
-        x->x_startcursor = x->x_clickOrigin;
-        x->x_endcursor   = x->x_x;
-        outlet_float(x->out4, x->x_x * x->x_outputFactor);
+        wavesel_color_columns(x, x->canvas_startcursor, x->canvas_clickOrigin, 0);
+        wavesel_color_columns(x, x->canvas_clickOrigin, floor(x->canvas_x), 1);
+        wavesel_color_columns(x, floor(x->canvas_x), x->canvas_endcursor, 0);
+        x->canvas_startcursor = x->canvas_clickOrigin;
+        x->canvas_endcursor   = floor(x->canvas_x);
+        outlet_float(x->out4, x->canvas_x * x->outlet_outputFactor);
     }
     else //left side
     { 
-        wavesel_color_columns(x, x->x_clickOrigin, x->x_endcursor, 0);
-        wavesel_color_columns(x, x->x_x, x->x_clickOrigin, 1);
-        wavesel_color_columns(x, x->x_startcursor, x->x_x, 0);
-//        wavesel_move_background_selection(x, x->x_x + 1,  x->x_clickOrigin - x->x_x);
-        x->x_startcursor = x->x_x;
-        x->x_endcursor   = x->x_clickOrigin;
-        outlet_float(x->out3, x->x_x * x->x_outputFactor);
+        wavesel_color_columns(x, x->canvas_clickOrigin, x->canvas_endcursor, 0);
+        wavesel_color_columns(x, x->canvas_x, x->canvas_clickOrigin, 1);
+        wavesel_color_columns(x, x->canvas_startcursor, x->canvas_x, 0);
+        x->canvas_startcursor = floor(x->canvas_x);
+        x->canvas_endcursor   = x->canvas_clickOrigin;
+        outlet_float(x->out3, x->canvas_x * x->outlet_outputFactor);
     }
-    wavesel_move_background_selection(x, x->x_startcursor + 1,
-        x->x_endcursor - x->x_startcursor);
-        
-    if (x->x_visCounter < 2)
-        wavesel_drawme(x, x->x_glist, 1);
-
     outlet_float(x->out5, 2);    
 }
 
-static void wavesel_loopmode_motion(t_wavesel *x, t_floatarg dx, 
+static void wavesel_motion_loopmode(t_wavesel *x, t_floatarg dx, 
     t_floatarg dy)
 {
     int i;
-    int size = x->x_endfg - x->x_startfg + 2; // rationalize this offset
+    int size = x->canvas_endForeground - x->canvas_startForeground + 2; // rationalize this offset
     int dix = (int)dx;
     int diy = (int)dy;
     int dstart = dix + diy;
     int dend   = dix - diy;
-    int oldStartCursor = x->x_startcursor;
-    int oldEndCursor = x->x_endcursor;
-    x->x_startcursor += dstart;
-    x->x_endcursor += dend;
+    int oldStartCursor = x->canvas_startcursor;
+    int oldEndCursor = x->canvas_endcursor;
+    x->canvas_startcursor += dstart;
+    x->canvas_endcursor   += dend;
 
     // check boundaries and internal consistency    
-    x->x_startcursor = (x->x_startcursor < 0)  ? 0 : x->x_startcursor;
-    x->x_endcursor   = (x->x_endcursor > size) ? size : x->x_endcursor;
-        
-    if (x->x_startcursor > x->x_endcursor) {
-        x->x_startcursor = x->x_x;
-        x->x_endcursor   = x->x_x;
+    if (x->canvas_startcursor > x->canvas_endcursor) {
+        int tmp = (int)((x->canvas_startcursor + x->canvas_endcursor) / 2.f);
+        x->canvas_startcursor = tmp;
+        x->canvas_endcursor   = tmp;
     }
     
+    x->canvas_startcursor = ((int)(x->canvas_startcursor)  < 0) ? 0: x->canvas_startcursor;
+    x->canvas_startcursor = ((int)(x->canvas_startcursor + 0.f) > size) ? size : x->canvas_startcursor;
+    x->canvas_endcursor = ((int)(x->canvas_endcursor)  < 0) ? 0 : x->canvas_endcursor;
+    x->canvas_endcursor = ((int)(x->canvas_endcursor + 0.5f) > size) ? size : x->canvas_endcursor;
+
     // minimize the range to update
-    int startUpdateRange = (x->x_startcursor > oldStartCursor) ? 
-        oldStartCursor : x->x_startcursor;
-    int endUpdateRange   = (x->x_endcursor > oldEndCursor) ? 
-        x->x_endcursor : oldEndCursor;
+    int startUpdateRange = (x->canvas_startcursor > oldStartCursor) ? 
+        oldStartCursor : x->canvas_startcursor;
+    int endUpdateRange   = (x->canvas_endcursor > oldEndCursor) ? 
+        x->canvas_endcursor : oldEndCursor;
  
     for (i = startUpdateRange; i <= endUpdateRange; i++)
     {
-        if (i < x->x_startcursor || i > x->x_endcursor)
-            wavesel_color_element(x, i + x->x_startfg, 
-                x->x_fgcolor->s_name);
+        if (i < x->canvas_startcursor || i > x->canvas_endcursor)
+            wavesel_color_element(x, i + x->canvas_startForeground, 
+                x->canvas_foregroundColor->s_name);
         else
-            wavesel_color_element(x, i + x->x_startfg, 
-                x->x_fgselcolor->s_name);
+            wavesel_color_element(x, i + x->canvas_startForeground, 
+                x->canvas_foregroundSelectedColor->s_name);
     }
-    
-    wavesel_color_rect_element(x, x->x_startbg, x->x_bgselcolor->s_name,
-        x->x_bgselcolor->s_name);
-    wavesel_move_background_selection(x, x->x_startcursor, 
-        x->x_endcursor - x->x_startcursor);
-        
-    if (x->x_visCounter < 2)
-        wavesel_drawme(x, x->x_glist, 1);
-        
-    outlet_float(x->out3, (x->x_startcursor * x->x_outputFactor));
-    outlet_float(x->out4, (x->x_endcursor * x->x_outputFactor));
+    wavesel_move_background_selection(x, x->canvas_startcursor, 
+        x->canvas_endcursor - x->canvas_startcursor);
+
+    outlet_float(x->out3, (x->canvas_startcursor * x->outlet_outputFactor));
+    outlet_float(x->out4, (x->canvas_endcursor * x->outlet_outputFactor));
     outlet_float(x->out5, 2);
 }
 
 static void wavesel_motion(t_wavesel *x, t_floatarg dx, t_floatarg dy)
 {
-    x->x_x += dx;
-    x->x_y += dy;
-
-    if (x->x_x >= 0 && x->x_x <= x->x_width - 2)
+    if (x->canvas_x >= 0.f && x->canvas_x <= (t_float)(x->canvas_width - 2.f))
     {
-        switch (x->x_mode) {
+        switch (x->mode) {
         case MODE_NONE:
             break; 
         case MODE_SELECT:
-            wavesel_selectmode_motion(x);
+            wavesel_motion_selectmode(x, dx);
             break;
         case MODE_LOOP:
-            wavesel_loopmode_motion(x, dx, dy);
+            wavesel_motion_loopmode(x, dx, dy);
             break;
         case MODE_MOVE:
-//            wavesel_movemode_motion(x, dx, dy);
             break;
         case MODE_DRAW:
              break;
         }
     }
+    wavesel_drawme(x, x->x_glist, 0);
+    wavesel_draw_columns(x);
+    outlet_float(x->out6, 0);
 }
 
 void wavesel_key(t_wavesel *x, t_floatarg f)
 {
-  post("key");
+//  post("key");
+  if (x || f) {}
 }
 
-static void wavesel_selectmode_click(t_wavesel *x)
+static void wavesel_click_selectmode(t_wavesel *x)
 {
     wavesel_reset_selection(x);
     
-    outlet_float(x->out3, x->x_x * x->x_outputFactor);
-    outlet_float(x->out4, x->x_x * x->x_outputFactor);
+    outlet_float(x->out3, x->canvas_x * x->outlet_outputFactor);
+    outlet_float(x->out4, x->canvas_x * x->outlet_outputFactor);
     
-    wavesel_color_element(x, x->x_x + x->x_startfg, 
-        x->x_fgselcolor->s_name);
+    wavesel_color_element(x, (int)x->canvas_x + x->canvas_startForeground, 
+        x->canvas_foregroundSelectedColor->s_name);
         
-    wavesel_color_rect_element(x, x->x_startbg, 
-        x->x_bgselcolor->s_name, x->x_bgselcolor->s_name);
-    wavesel_move_background_selection(x, x->x_x, 0);
-    
-    if (x->x_visCounter < 2)
-        wavesel_drawme(x, x->x_glist, 1);
+    wavesel_color_rect_element(x, x->canvas_selectBackground, 
+        x->canvas_backgroundSelectedColor->s_name, x->canvas_backgroundSelectedColor->s_name);
+    wavesel_move_background_selection(x, (int)x->canvas_x, 0);
 
-    x->x_startcursor = x->x_x;
-    x->x_endcursor   = x->x_x;
-    x->x_clickOrigin = x->x_x;
+    x->canvas_startcursor = (int)(x->canvas_x + 0.5f);
+    x->canvas_endcursor   = (int)(x->canvas_x + 0.5f);
+    x->canvas_clickOrigin = (int)(x->canvas_x + 0.5f);
 }
 
-static void wavesel_loopmode_click(t_wavesel *x)
+static void wavesel_click_loopmode(t_wavesel *x)
 {
-    int selectedRange = (x->x_endcursor - x->x_startcursor) / 2;
-    int columnCount = x->x_endfg - x->x_startfg;
-    if (!x->x_endcursor) // if no selection
-        wavesel_selectmode_click(x);
+    int selectedRange = (x->canvas_endcursor - x->canvas_startcursor) / 2;
+    int columnCount = x->canvas_endForeground - x->canvas_startForeground;
+    if (!x->canvas_endcursor) // if no selection
+        wavesel_click_selectmode(x);
     else
     {
         wavesel_reset_selection(x);
-        x->x_startcursor = x->x_x - selectedRange;
-        x->x_endcursor = x->x_x + selectedRange;
-        x->x_startcursor = (x->x_startcursor < 0) ? 0 : x->x_startcursor;
-        x->x_endcursor = (x->x_endcursor > columnCount) ? 
-            columnCount : x->x_endcursor;
+        x->canvas_startcursor = x->canvas_x - selectedRange;
+        x->canvas_endcursor = x->canvas_x + selectedRange;
+        x->canvas_startcursor = (x->canvas_startcursor < 0) ? 0 : x->canvas_startcursor;
+        x->canvas_endcursor = (x->canvas_endcursor > columnCount) ? 
+            columnCount : x->canvas_endcursor;
 
         wavesel_color_all_columns(x);
     }
@@ -708,28 +679,29 @@ static void wavesel_click(t_wavesel *x,
     glist_grab(x->x_glist, &x->x_obj.te_g,
         (t_glistmotionfn)wavesel_motion, (t_glistkeyfn)NULL, xpos, ypos);
 
-    x->x_x = xpos - x->x_obj.te_xpix;
-    x->x_y = ypos - x->x_obj.te_ypix;
+    x->canvas_x = xpos - x->x_obj.te_xpix;
+    x->canvas_y = ypos - x->x_obj.te_ypix;
 
     outlet_float(x->out5, 0);
  
-    if (x->x_x > 0 && x->x_x < x->x_width -2 && x->x_y > 0 && 
-        x->x_y < x->x_height)
+    if (x->canvas_x > 0 && x->canvas_x < x->canvas_width -2 && x->canvas_y > 0 && 
+        x->canvas_y < x->canvas_height)
     {
-        switch (x->x_mode) {
+        switch (x->mode) {
         case MODE_NONE:
             break; 
         case MODE_SELECT:
-            wavesel_selectmode_click(x);
+            wavesel_click_selectmode(x);
             break;
         case MODE_LOOP:
-            wavesel_loopmode_click(x);
+            wavesel_click_loopmode(x);
             break;
         case MODE_MOVE:
         case MODE_DRAW:
             break;
         }
     }
+    wavesel_drawme(x, x->x_glist, 0);
 }
 
 static int wavesel_newclick(t_gobj *z, struct _glist *glist,
@@ -746,7 +718,7 @@ static int wavesel_newclick(t_gobj *z, struct _glist *glist,
 
 static void wavesel_activate(t_gobj *z, t_glist *glist, int state)
 {
-    
+    if (z || glist || state) {} // eliminate compiler warnings
 }
 
 // when is what called (also see g_canvas.h):
@@ -772,7 +744,7 @@ static void wavesel_rect(t_wavesel* x, t_symbol* c, float xp, float y,
     float w, float h)
 {
     t_element* e = getbytes(sizeof(t_element));
-    x->x_element[x->x_numelem] = e;
+    x->canvas_element[x->canvas_numelem] = e;
     
     e->type = RECT;
     e->x = xp;
@@ -780,16 +752,16 @@ static void wavesel_rect(t_wavesel* x, t_symbol* c, float xp, float y,
     e->w = w;
     e->h = h;
     e->color = c->s_name;
-    wavesel_draw_element(x, x->x_numelem);
-    x->x_numelem++;
+    wavesel_draw_element(x, x->canvas_numelem);
+    x->canvas_numelem++;
 }
 
 static void wavesel_column(t_wavesel* x, t_symbol* c, float xp, float y, 
     float w, float h)
 {
-    if (x->x_numelem < MAXELEM-1) {
+    if (x->canvas_numelem < MAXELEM-1) {
         t_element* e = getbytes(sizeof(t_element));
-        x->x_element[x->x_numelem] = e;
+        x->canvas_element[x->canvas_numelem] = e;
         
         e->type = LINE;
         e->x = xp;
@@ -798,8 +770,8 @@ static void wavesel_column(t_wavesel* x, t_symbol* c, float xp, float y,
         e->h = h;
         e->g = 1;
         e->color = c->s_name;
-        wavesel_draw_element(x, x->x_numelem);
-        x->x_numelem++;
+        wavesel_draw_element(x, x->canvas_numelem);
+        x->canvas_numelem++;
     }
 }
 
@@ -808,12 +780,23 @@ static void wavesel_color(t_wavesel* x, t_symbol* c, float num)
     wavesel_color_element(x,(int)num,c->s_name);
 }
 
+
+void wavesel_deletenum(t_wavesel* x,float num)
+{
+    int i = (int) num;
+    if (x->canvas_element[i]) {
+        wavesel_delete_element(x,i);
+        freebytes(x->canvas_element[i],sizeof(t_element));
+        x->canvas_element[i] = NULL;
+    }
+}
+
 // find extremes in the sample range represented by this column
 static void wavesel_get_column_size(t_wavesel* x, int column, 
     t_word *vec)
 {
-    int sampleOffset   = (int)(column * x->x_samplesPerPixel);
-    int sampleEndPoint = sampleOffset + (int)x->x_samplesPerPixel;
+    int sampleOffset   = (int)(column * x->canvas_samplesPerColumn);
+    int sampleEndPoint = sampleOffset + (int)x->canvas_samplesPerColumn;
     int i;
     t_float maxSize = 0.5;
     t_float upper = 0, lower = 0;
@@ -822,25 +805,24 @@ static void wavesel_get_column_size(t_wavesel* x, int column,
         upper = (upper < (vec[i].w_float)) ? vec[i].w_float : upper;
         lower = (lower > (vec[i].w_float)) ? vec[i].w_float : lower;
     }
-    if (x->x_clipmode) 
+    if (x->canvas_clipmode) 
     {
-         x->x_currentElementTop = (upper >  maxSize) ?  maxSize : upper;
+         x->canvas_columnTop = (upper >  maxSize) ?  maxSize : upper;
          x->x_currentElementBottom = 
              (lower < -maxSize) ? -maxSize : lower;
     }
     else
     {
-        x->x_currentElementTop = upper;
+        x->canvas_columnTop = upper;
         x->x_currentElementBottom = lower;
     }
 }
 
-static void wavesel_draw_columns(t_wavesel* x, t_float f)
+static void wavesel_draw_columns(t_wavesel* x)
 {
-    int forceFirstTime = (f < 0) ? 0 : 1;
-    if (!x->x_array) 
+    if (!x->array) 
         return;
-    t_garray *ax = x->x_array;
+    t_garray *ax = x->array;
     t_word *vec;
     int size;
     if (!garray_getfloatwords(ax, &size, &vec))
@@ -849,200 +831,203 @@ static void wavesel_draw_columns(t_wavesel* x, t_float f)
         return;
     }
     int column;
-    int middle = (int)(x->x_height / 2);
-    int columnCount = x->x_endfg - x->x_startfg;
+    int middle = (int)(x->canvas_height / 2);
+    int columnCount = x->canvas_endForeground - x->canvas_startForeground;
     for (column = 0; column <= columnCount; column++)
     {
         wavesel_get_column_size(x, column, vec);
-        x->x_element[column + x->x_startfg]->y = middle - 
-            (int)(x->x_currentElementTop * x->x_height);
-        x->x_element[column + x->x_startfg]->h = 
-            (int)((x->x_currentElementTop - 
-            x->x_currentElementBottom) * x->x_height + 1);
+        x->canvas_element[column + x->canvas_startForeground]->y = middle - 
+            (int)(x->canvas_columnTop * x->canvas_height);
+        x->canvas_element[column + x->canvas_startForeground]->h = 
+            (int)((x->canvas_columnTop - 
+            x->x_currentElementBottom) * x->canvas_height + 1);
     }
-    wavesel_drawme(x, x->x_glist, forceFirstTime);
 }
 
 static void wavesel_draw_foreground(t_wavesel* x)
 {
     int column;
-    int e = x->x_numelem;
-    int middle = (int)(x->x_height / 2);
-    x->x_startfg = x->x_numelem;
-    for (column = 1; column < x->x_width; column++)
+    int e = x->canvas_numelem;
+    int middle = (int)(x->canvas_height / 2);
+    x->canvas_startForeground = x->canvas_numelem;
+    for (column = 1; column < x->canvas_width; column++)
     {
-        x->x_element[e] = getbytes(sizeof(t_element));
-        x->x_element[e]->type = LINE;
-        x->x_element[e]->x = column;
-        x->x_element[e]->y = middle;
-        x->x_element[e]->w = 0;
-        x->x_element[e]->h = 1;
-        x->x_element[e]->color = x->x_fgcolor->s_name;
-        x->x_numelem++;
+        x->canvas_element[e] = getbytes(sizeof(t_element));
+        x->canvas_element[e]->type = LINE;
+        x->canvas_element[e]->x = column;
+        x->canvas_element[e]->y = middle;
+        x->canvas_element[e]->w = 0;
+        x->canvas_element[e]->h = 1;
+        x->canvas_element[e]->color = x->canvas_foregroundColor->s_name;
+        x->canvas_numelem++;
         e++;
     }
-    x->x_endfg = x->x_width - 2;
+    x->canvas_endForeground = x->canvas_width - 2;
 }
 
 static void wavesel_reset_selection(t_wavesel* x) 
 {
-    if (x->x_startfg == 0) return;
+    if (x->canvas_startForeground == 0) return;
     int i;
-    for (i = x->x_startfg; i <= x->x_endfg; i++)
-        wavesel_color_element(x, i, x->x_fgcolor->s_name);
+    for (i = x->canvas_startForeground; i <= x->canvas_endForeground; i++)
+        wavesel_color_element(x, i, x->canvas_foregroundColor->s_name);
         
-    wavesel_color_rect_element(x, x->x_startbg, x->x_bgcolor->s_name, 
-        x->x_bgcolor->s_name);
-    wavesel_move_background_selection(x, x->x_startbg, 0);
-    x->x_startcursor = 0;
-    x->x_endcursor = 0;
+    wavesel_color_rect_element(x, x->canvas_selectBackground, x->canvas_backgroundColor->s_name, 
+        x->canvas_backgroundColor->s_name);
+    wavesel_move_background_selection(x, x->canvas_selectBackground, 0);
+    x->canvas_startcursor = 0;
+    x->canvas_endcursor = 0;
 }
 
 static void wavesel_drawbase(t_wavesel* x) 
 {
-    if (x->x_numelem)
+    if (x->canvas_numelem)
         wavesel_erase(x, x->x_glist);
+    t_symbol* selectColor = x->canvas_backgroundColor;
+    int start = 1;
+    int width = 0;
+    if (x->canvas_endcursor)
+    {
+        selectColor = x->canvas_backgroundSelectedColor;
+        start = x->canvas_startcursor;
+        width = x->canvas_endcursor - x->canvas_startcursor;
+    }
 
-    int e = x->x_numelem;
-    x->x_element[e] = getbytes(sizeof(t_element));
-    x->x_element[e]->type = RECT;
-    x->x_element[e]->x = 0;
-    x->x_element[e]->y = 0;
-    x->x_element[e]->w = x->x_width;
-    x->x_element[e]->h = x->x_height;
-    x->x_element[e]->color = BACKDROP;
-    x->x_element[e]->outlinecolor = BORDER;
-    x->x_numelem++;
+    // outline box
+    int e = x->canvas_numelem;
+    x->canvas_element[e] = getbytes(sizeof(t_element));
+    x->canvas_element[e]->type = RECT;
+    x->canvas_element[e]->x = 0;
+    x->canvas_element[e]->y = 0;
+    x->canvas_element[e]->w = x->canvas_width;
+    x->canvas_element[e]->h = x->canvas_height;
+    x->canvas_element[e]->color = x->canvas_backgroundColor->s_name;
+    x->canvas_element[e]->outlinecolor = BORDER;
+    x->canvas_numelem++;
     
-    e = x->x_numelem;
-    x->x_startbg = e;
-    x->x_element[e] = getbytes(sizeof(t_element));
-    x->x_element[e]->type = RECT;
-    x->x_element[e]->x = 1;
-    x->x_element[e]->y = 1;
-    x->x_element[e]->w = 1;
-    x->x_element[e]->h = x->x_height - 3;
-    x->x_element[e]->color = x->x_bgcolor->s_name;
-    x->x_element[e]->outlinecolor = x->x_bgcolor->s_name;
-    x->x_numelem++;
-    
-    x->x_visCounter = 0;
-
+    // background selection rectangle
+    e = x->canvas_numelem;
+    x->canvas_selectBackground = e;
+    x->canvas_element[e] = getbytes(sizeof(t_element));
+    x->canvas_element[e]->type = RECT;
+    x->canvas_element[e]->x = start;
+    x->canvas_element[e]->y = 1;
+    x->canvas_element[e]->w = width;
+    x->canvas_element[e]->h = x->canvas_height - 3;
+    x->canvas_element[e]->color = selectColor->s_name;
+    x->canvas_element[e]->outlinecolor = selectColor->s_name;
+    x->canvas_numelem++;
 }
   
 static void wavesel_state(t_wavesel* x) 
 {
     post(" --==## wavesel_state ##==--");
-    post("x_width: %d",           x->x_width);
-    post("x_height: %d",          x->x_height);
-    post("x_numelem: %d",         x->x_numelem);
-    post("x_startcursor (relative to canvas): %d, (%f ms)",     x->x_startcursor, x->x_startcursor * x->x_outputFactor);
-    post("x_endcursor (relative to canvas): %d, (%f ms)",       x->x_endcursor, x->x_endcursor * x->x_outputFactor);
-    post("selected bg width: %d", x->x_endcursor - x->x_startcursor);
-    post("x_startfg (absolute in element array): %d",  x->x_startfg);
-    post("x_endfg (absolute in element array): %d",    x->x_endfg);
-    post("x_startbg (absolute in element array): %d",  x->x_startbg);
-    post("x_array: %s",          (x->x_array) ? "defined" : "null");
-    post("x_arrayname: %s",       x->x_arrayname->s_name);
-    post("x_arraysize: %d",       x->x_arraysize);
-    post("x_samplesPerPixel: %f", x->x_samplesPerPixel);
-    post("x_ksr: %f",             x->x_ksr);
-    post("x_outputFactor: %f",    x->x_outputFactor);
-    post("x_mode: %d",            x->x_mode);
-    post("x_bufRefresh: %lf",     x->x_bufRefresh);
-    post("x_clockRunning: %d",    x->x_clockRunning);
-    post("x_linePosition: %f",    x->x_linePosition);
-    post("x_clipmode: %d",        x->x_clipmode);
-    post("visCounter: %d",        x->x_visCounter); // unspeakable hack to fix pre-restore update
-    post("-- background rectangle:");
-    post(" x: %d", x->x_element[0]->x);
-    post(" y: %d", x->x_element[0]->y);
-    post(" w: %d", x->x_element[0]->w);
-    post(" h: %d", x->x_element[0]->h);
-    post(" color: %s", x->x_element[0]->color);
-    post(" outlinecolor: %s", x->x_element[0]->outlinecolor);
-    post("-- select rectangle:");
-    post(" x: %d", x->x_element[x->x_startbg]->x);
-    post(" y: %d", x->x_element[x->x_startbg]->y);
-    post(" w: %d", x->x_element[x->x_startbg]->w);
-    post(" h: %d", x->x_element[x->x_startbg]->h);
-    post(" color: %s", x->x_element[x->x_startbg]->color);
-    post(" outlinecolor: %s", x->x_element[x->x_startbg]->outlinecolor);
-    post(" id: %lx%d", x, x->x_startbg);
+    post("canvas_width: %d",           x->canvas_width);
+    post("canvas_height: %d",          x->canvas_height);
+    post("canvas_numelem: %d",         x->canvas_numelem);
+    post("canvas_startcursor (relative to canvas): %d",     x->canvas_startcursor);
+    post("canvas_endcursor (relative to canvas): %d",       x->canvas_endcursor);
+    post("selected bg width: %d", x->canvas_endcursor - x->canvas_startcursor);
+    post("canvas_startfg (absolute in element array): %d",  x->canvas_startForeground);
+    post("canvas_endfg (absolute in element array): %d",    x->canvas_endForeground);
+    post("canvas_startbg (absolute in element array): %d",  x->canvas_selectBackground);
+    post("array: %s",          (x->array) ? "defined" : "null");
+    post("arrayname: %s",       x->array_name->s_name);
+    post("arraysize: %d",       x->array_size);
+    post("canvas_samplesPerColumn: %f", x->canvas_samplesPerColumn);
+    post("system_ksr: %f",             x->system_ksr);
+    post("outlet_outputFactor: %f",    x->outlet_outputFactor);
+    post("canvas_mode: %d",            x->mode);
+    post("array_bufRefresh: %lf",     x->array_viewRefresh);
+    post("system_clockRunning: %d",    x->system_clockRunning);
+    post("canvas_linePosition: %f",    x->canvas_linePosition);
+    post("canvas_clipmode: %d",        x->canvas_clipmode);
+    post("-- base rectangle:");
+    post(" x: %d", x->canvas_element[0]->x);
+    post(" y: %d", x->canvas_element[0]->y);
+    post(" w: %d", x->canvas_element[0]->w);
+    post(" h: %d", x->canvas_element[0]->h);
+    post(" color: %s", x->canvas_element[0]->color);
+    post(" outlinecolor: %s", x->canvas_element[0]->outlinecolor);
+    post("-- background select rectangle:");
+    post(" x: %d", x->canvas_element[x->canvas_selectBackground]->x);
+    post(" y: %d", x->canvas_element[x->canvas_selectBackground]->y);
+    post(" w: %d", x->canvas_element[x->canvas_selectBackground]->w);
+    post(" h: %d", x->canvas_element[x->canvas_selectBackground]->h);
+    post(" color: %s", x->canvas_element[x->canvas_selectBackground]->color);
+    post(" outlinecolor: %s", x->canvas_element[x->canvas_selectBackground]->outlinecolor);
 }
 
 static void wavesel_setarray(t_wavesel *x, t_symbol *s)
 {
     t_garray *array;
-    x->x_arrayname = s;
+    x->array_name = s;
     
-    if ((array = (t_garray *)pd_findbyclass(x->x_arrayname, 
+    if ((array = (t_garray *)pd_findbyclass(x->array_name, 
         garray_class)))
     {
-        x->x_array = array;
-        x->x_arraysize = garray_npoints(x->x_array);
-        x->x_samplesPerPixel = (t_float)x->x_arraysize / 
-            (t_float)x->x_width;
-        x->x_outputFactor = x->x_samplesPerPixel / x->x_ksr;
+        x->array = array;
+        x->array_size = garray_npoints(x->array);
+        x->canvas_samplesPerColumn = (t_float)x->array_size / 
+            (t_float)x->canvas_width;
+        x->outlet_outputFactor = x->canvas_samplesPerColumn / x->system_ksr;
     } else {
         post("wavesel: no array \"%s\" (error %d)", 
-            x->x_arrayname->s_name, array);
-        x->x_array = 0;
-        x->x_arraysize = 0;
+            x->array_name->s_name, array);
+        x->array = 0;
+        x->array_size = 0;
         return;
     }
     outlet_float(x->out1, 0);
-    outlet_float(x->out2, x->x_arraysize / x->x_ksr);
-    outlet_float(x->out3, x->x_startcursor * x->x_outputFactor);
-    outlet_float(x->out4, x->x_endcursor   * x->x_outputFactor);
-    wavesel_draw_columns(x, 0);
+    outlet_float(x->out2, x->array_size / x->system_ksr);
+    outlet_float(x->out3, x->canvas_startcursor * x->outlet_outputFactor);
+    outlet_float(x->out4, x->canvas_endcursor   * x->outlet_outputFactor);
+    wavesel_draw_columns(x);
 }
 
-static void wavesel_setfgcolor(t_wavesel *x, t_symbol *s)
+static void wavesel_setForegroundColor(t_wavesel *x, t_symbol *s)
 {
-    x->x_fgcolor = s;
+    x->canvas_foregroundColor = s;
     wavesel_drawme(x, x->x_glist, 0);
 }
 
-static void wavesel_setbgcolor(t_wavesel *x, t_symbol *s)
+static void wavesel_setBackgroundColor(t_wavesel *x, t_symbol *s)
 {
-    x->x_bgcolor = s;
+    x->canvas_backgroundColor = s;
+    x->canvas_element[0]->color = s->s_name;
     wavesel_drawme(x, x->x_glist, 0);
 }
 
-static void wavesel_setfgselcolor(t_wavesel *x, t_symbol *s)
+static void wavesel_setfForegroundSelectColor(t_wavesel *x, t_symbol *s)
 {
-    x->x_fgselcolor = s;
+    x->canvas_foregroundSelectedColor = s;
     wavesel_drawme(x, x->x_glist, 0);
 }
 
-static void wavesel_setbgselcolor(t_wavesel *x, t_symbol *s)
+static void wavesel_setBackgroundSelectColor(t_wavesel *x, t_symbol *s)
 {
-    x->x_bgselcolor = s;
+    x->canvas_backgroundSelectedColor = s;
     wavesel_drawme(x, x->x_glist, 0);
 }
 
 static void wavesel_buftime(t_wavesel* x, float fRefresh)
 {
-    x->x_bufRefresh = (double)(fRefresh < 0) ? WAVESEL_BUFREFRESH : 
+    x->array_viewRefresh = (double)(fRefresh < 0) ? WAVESEL_BUFREFRESH : 
         fRefresh;
-    clock_delay(x->x_clock, x->x_bufRefresh);
+    clock_delay(x->system_clock, x->array_viewRefresh);
 }
 
 static void wavesel_tick(t_wavesel *x)
 {
-    if (!x->x_array && x->x_arrayname->s_name[0] != 0)
-        wavesel_setarray(x, x->x_arrayname);
-    x->x_clockRunning = 0;
-    if (x->x_bufRefresh == 0)
+    x->system_clockRunning = 0;
+    if (x->array_viewRefresh == 0)
         return;
-    if (!x->x_mouseDown)
+/*    if (!x->x_mouseDown)
     {
-        wavesel_draw_columns(x, 0);
-    }
-    clock_delay(x->x_clock, x->x_bufRefresh);
-    x->x_clockRunning = 1;
-//    outlet_float(x->out3, 1);  // test clock-tick indicator
+        wavesel_draw_columns(x);
+    } */
+    clock_delay(x->system_clock, x->array_viewRefresh);
+    x->system_clockRunning = 1;
 }
 
 static void waveselhandle__clickhook(t_waveselhandle *wsh, t_floatarg f)
@@ -1052,8 +1037,8 @@ static void waveselhandle__clickhook(t_waveselhandle *wsh, t_floatarg f)
     {
 	t_wavesel *x = wsh->h_master;
 	t_canvas *cv;
-	x->x_width += wsh->h_dragx;
-	x->x_height += wsh->h_dragy;
+	x->canvas_width += wsh->h_dragx;
+	x->canvas_height += wsh->h_dragy;
 	if ((cv = wavesel_isvisible(x)))
 	{
 	    sys_vgui(".x%lx.c delete %s\n", cv, wsh->h_outlinetag);
@@ -1103,46 +1088,52 @@ static void waveselhandle__motionhook(t_waveselhandle *wsh,
             wsh->h_dragx = dx;
             wsh->h_dragy = dy;
         }
-        x->x_width  = x2 - x1;
-        x->x_height = y2 - y1;
+        x->canvas_width  = x2 - x1;
+        x->canvas_height = y2 - y1;
     }
 }
 
 static void *wavesel_line(t_wavesel *x, t_float f)
 {
-    x->x_linePosition = f;
+    x->canvas_linePosition = f;
     wavesel_reset_selection(x);
-    int size = x->x_endfg - x->x_startfg;
-    int column = (int)((x->x_linePosition / x->x_samplesPerPixel) * 
-        x->x_ksr + 0.5);
+    int size = x->canvas_endForeground - x->canvas_startForeground;
+    int column = (int)((x->canvas_linePosition / x->canvas_samplesPerColumn) * 
+        x->system_ksr + 0.5);
         
-    if (column >= 0 && column <= size) 
-    {
-        wavesel_color_element(x, column + x->x_startfg, 
-            x->x_fgselcolor->s_name);
+    if (column >= 0 && column <= size) {
+        wavesel_color_element(x, column + x->canvas_startForeground, 
+            x->canvas_foregroundSelectedColor->s_name);
             
         wavesel_move_background_selection(x, column, 1);
-        wavesel_color_rect_element(x, x->x_startbg, 
-            x->x_bgselcolor->s_name, x->x_bgselcolor->s_name);
+        wavesel_color_rect_element(x, x->canvas_selectBackground, 
+            x->canvas_backgroundSelectedColor->s_name, x->canvas_backgroundSelectedColor->s_name);
     }
+    return 0;
 }
 
 static void *wavesel_clipdraw(t_wavesel *x, t_float f)
 {
-    x->x_clipmode = (int)(f < 0) ? 0 : 1;
+    x->canvas_clipmode = (int)(f < 0) ? 0 : 1;
+    return 0;
 }
 
 static void *wavesel_doup(t_wavesel *x, t_float f)
 {
-    x->x_mouseDown = (int)(f > 0) ? 0 : 1;
+    x->canvas_mouseDown = (int)(f > 0) ? 0 : 1;
     outlet_float(x->out5, 3);
-//    if (x->x_bufRefresh == 0)
-//        wavesel_draw_columns(x, 0);
+    return 0;
 }
 
-static void *wavesel_doelse(t_wavesel *x, t_float f1, t_float f2)
+static void *wavesel_loadbang(t_wavesel *x)
 {
-//    post("wavesel_doelse:");
+    if (!sys_noloadbang)
+    {
+        post("wavesel_loadbang: !sys_noloadbang");
+        if (!x->array && x->array_name->s_name[0] != 0)
+            wavesel_setarray(x, x->array_name);
+    }
+    return 0;
 }
 
 // arguments to add: setmode, buftime, fgcolor, bgcolor, fgselcolor, bgselcolor, 
@@ -1152,40 +1143,39 @@ static void *wavesel_new(t_symbol* s, t_float w, t_float h)
     t_wavesel *x = (t_wavesel *)pd_new(wavesel_class);
 
     x->x_glist = (t_glist*) canvas_getcurrent();
-    x->x_ksr   = sys_getsr() * MILLIS;
-    x->x_outputFactor = 1.; // used for outlet unit calculation
-    x->x_mode  = 0;
-    x->x_mouseDown = 0;
+    x->system_ksr   = sys_getsr() * MILLIS;
+    x->outlet_outputFactor = 1.; // used for outlet unit calculation
+    x->mode  = 0;
+    x->canvas_mouseDown = 0;
     
     for (i=0;i<MAXELEM;i++)
-        x->x_element[i] = NULL;
-    x->x_numelem   = 0;
-    x->x_arrayname = s;
-    x->x_array     = 0;
+        x->canvas_element[i] = NULL;
+    x->canvas_numelem   = 0;
+    x->array_name = s;
+    x->array     = 0;
         
-    x->x_bufRefresh = (double)WAVESEL_BUFREFRESH;
-    x->x_clock = clock_new(x, (t_method)wavesel_tick); // get a clock
-    clock_delay(x->x_clock, x->x_bufRefresh); // start it
-    x->x_clockRunning = 1;
+    x->array_viewRefresh = (double)WAVESEL_BUFREFRESH;
+    x->system_clock = clock_new(x, (t_method)wavesel_tick); // get a clock
+    clock_delay(x->system_clock, x->array_viewRefresh); // start it
+    x->system_clockRunning = 1;
 
-    x->x_width = DEFAULTSIZE;
+    x->canvas_width = DEFAULTSIZE;
     if ((int)w > WAVESEL_MINWIDTH) 
-        x->x_width = w;
+        x->canvas_width = w;
 
-    x->x_height = DEFAULTSIZE;
+    x->canvas_height = DEFAULTSIZE;
     if ((int)h > WAVESEL_MINHEIGHT)
-        x->x_height = h;
+        x->canvas_height = h;
 
-    x->x_startcursor = 0;
-    x->x_endcursor   = 0;
-    x->x_last_selected = 0;
-    x->x_fgcolor = gensym(FGCOLOR);
-    x->x_bgcolor = gensym(BGCOLOR);
-    x->x_fgselcolor = gensym(FGSELCOLOR);
-    x->x_bgselcolor = gensym(BGSELCOLOR);
+    x->canvas_startcursor = 0;
+    x->canvas_endcursor   = 0;
+    x->canvas_foregroundColor = gensym(FGCOLOR);
+    x->canvas_backgroundColor = gensym(BGCOLOR);
+    x->canvas_foregroundSelectedColor = gensym(FGSELCOLOR);
+    x->canvas_backgroundSelectedColor = gensym(BGSELCOLOR);
     wavesel_drawbase(x);
     wavesel_draw_foreground(x);
-    wavesel_draw_columns(x, 1);
+    wavesel_draw_columns(x);
 
     x->out1 = outlet_new(&x->x_obj, &s_float);
     x->out2 = outlet_new(&x->x_obj, &s_float);
@@ -1197,26 +1187,24 @@ static void *wavesel_new(t_symbol* s, t_float w, t_float h)
 // handle start  
     t_waveselhandle *wsh;
     char handlebuf[TAGBUFFER];    
-    x->x_handle = pd_new(waveselhandle_class);
-    wsh = (t_waveselhandle *)x->x_handle;
+    x->editHandle = pd_new(waveselhandle_class);
+    wsh = (t_waveselhandle *)x->editHandle;
     wsh->h_master = x;
     sprintf(handlebuf, "_h%lx", (unsigned long)wsh);
-    pd_bind(x->x_handle, wsh->h_bindsym = gensym(handlebuf));
+    pd_bind(x->editHandle, wsh->h_bindsym = gensym(handlebuf));
     sprintf(wsh->h_outlinetag, "h%lx", (unsigned long)wsh);
     wsh->h_dragon = 0;
     
-    sprintf(x->x_tag,     "all%lx", (unsigned long)x);
-    sprintf(x->x_bgtag,   "bg%lx",  (unsigned long)x);
-    sprintf(x->x_gridtag, "gr%lx",  (unsigned long)x);
-    sprintf(x->x_fgtag,   "fg%lx",  (unsigned long)x);
+    sprintf(x->canvas_allTag,     "all%lx", (unsigned long)x);
+    sprintf(x->canvas_backgroundTag,   "bg%lx",  (unsigned long)x);
+    sprintf(x->canvas_gridTag, "gr%lx",  (unsigned long)x);
+    sprintf(x->canvas_foregroundTag,   "fg%lx",  (unsigned long)x);
     
     wsh->h_selectedmode = 0;
 // handle end 
 
 // init hammer for mouseUp (wavesel_doup)
     hammergui_bindmouse((t_pd *)x); 
-    
-    x->x_visCounter = 0;
     
     return (x);
 }
@@ -1240,44 +1228,48 @@ void wavesel_tilde_setup(void)
 // wavesel specific
     class_addmethod(wavesel_class, (t_method)wavesel_setarray, 
         gensym("setarray"), A_SYMBOL, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_setfgcolor, 
+    class_addmethod(wavesel_class, (t_method)wavesel_setForegroundColor, 
         gensym("setfgcolor"), A_SYMBOL, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_setbgcolor, 
+    class_addmethod(wavesel_class, (t_method)wavesel_setBackgroundColor, 
         gensym("setbgcolor"), A_SYMBOL, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_setfgselcolor, 
+    class_addmethod(wavesel_class, (t_method)wavesel_setfForegroundSelectColor, 
         gensym("setfgselcolor"), A_SYMBOL, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_setbgselcolor, 
+    class_addmethod(wavesel_class, (t_method)wavesel_setBackgroundSelectColor, 
         gensym("setbgselcolor"), A_SYMBOL, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_reset_selection, 
         gensym("reset_selection"), 0);
+    class_addmethod(wavesel_class, (t_method)wavesel_draw_columns, 
+        gensym("drawwf"), A_FLOAT, 0);
 
 // internal
-    class_addmethod(wavesel_class, (t_method)wavesel_click, 
-        gensym("click"), A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_column, 
         gensym("column"), A_SYMBOL, A_FLOAT, A_FLOAT, A_FLOAT,A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_rect, 
         gensym("rect"), A_SYMBOL, A_FLOAT, A_FLOAT, A_FLOAT,A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_color, 
         gensym("color"), A_SYMBOL, A_FLOAT, 0);
+    class_addmethod(wavesel_class, (t_method)wavesel_deletenum, 
+        gensym("delete"), A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_setmode, 
         gensym("setmode"), A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_state, 
         gensym("state"), 0);
     class_addmethod(wavesel_class, (t_method)wavesel_redraw_all, 
         gensym("redraw_all"), 0);
+    class_addmethod(wavesel_class, (t_method)wavesel_loadbang, 
+        gensym("loadbang"), 0);
     class_addmethod(wavesel_class, (t_method)wavesel_move_element, 
         gensym("move_element"), A_FLOAT, 0);
         
 // hammergui
     class_addmethod(wavesel_class, (t_method)wavesel_doup, 
         gensym("_up"), A_FLOAT, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_doelse, 
-        gensym("_bang"), A_FLOAT, A_FLOAT, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_doelse,
-        gensym("_zero"), A_FLOAT, A_FLOAT, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_doelse,
-        gensym("_poll"), A_FLOAT, A_FLOAT, 0);
+//    class_addmethod(wavesel_class, (t_method)wavesel_doelse, 
+//        gensym("_bang"), A_FLOAT, A_FLOAT, 0);
+//    class_addmethod(wavesel_class, (t_method)wavesel_doelse,
+//        gensym("_zero"), A_FLOAT, A_FLOAT, 0);
+//    class_addmethod(wavesel_class, (t_method)wavesel_doelse,
+//        gensym("_poll"), A_FLOAT, A_FLOAT, 0);
 
 // GUI behaviour
     wavesel_setwidget();
@@ -1292,7 +1284,7 @@ void wavesel_tilde_setup(void)
     (t_method)waveselhandle__motionhook, gensym("_motion"), 
         A_FLOAT, A_FLOAT, 0);
     
-    post("wavesel~ 0.7 , a waveform~ wannabe, that isn't there yet...");
+    post("wavesel~ 0.6 , a waveform~ wannabe, that isn't there yet...");
     post("fjkraan@xs4all.nl, 2015-07-08");
 }
 
