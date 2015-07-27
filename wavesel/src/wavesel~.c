@@ -13,6 +13,8 @@
 #define DEFAULTSIZE 80
 #define TAGBUFFER   64
 #define MILLIS      0.001
+#define ZOOMFACTOR  0.05f
+#define MAXZOOM     0.1f // columns per sample
 
 static t_class *wavesel_class;
 static t_class *waveselhandle_class;
@@ -55,7 +57,14 @@ static t_class *waveselhandle_class;
 #define MAXELEM              2048 
 // MAXELEM is the maximum element array size. First element is the
 // enclosing rectangle, second is the selected background rectangle. The
-//~ // remainder is for the sample representing columns.
+// remainder is for the sample representing columns.
+#define MOUSE_LIST_X     0
+#define MOUSE_LIST_Y     1
+#define MOUSE_LIST_STATE 2
+#define CANVAS_LIST_VIEW_START   0
+#define CANVAS_LIST_VIEW_END     1
+#define CANVAS_LIST_SELECT_START 2
+#define CANVAS_LIST_SELECT_END   3
 
 typedef struct _elem {
     int x;
@@ -99,7 +108,7 @@ typedef struct _wavesel
     t_float    canvas_samplesPerColumn;
     t_float    system_ksr;
     t_float    canvas_columnTop;
-    t_float    x_currentElementBottom;
+    t_float    canvas_columnBottom;
     t_symbol  *canvas_foregroundColor;
     t_symbol  *canvas_backgroundColor;
     t_symbol  *canvas_foregroundSelectedColor;
@@ -118,6 +127,11 @@ typedef struct _wavesel
     int        canvas_mouseDown;
     t_float    canvas_linePosition;
     int        canvas_clipmode;
+    t_atom     outlet_mouse[3];
+    t_atom     outlet_canvas[4];
+    int        canvas_arrayViewStart;
+    int        canvas_arrayViewEnd;
+    t_float    canvas_columnGain;
 } t_wavesel;
 
 // handle start
@@ -142,6 +156,7 @@ typedef struct _waveselhandle
   x,y,w,h .. coordinates
 */
 
+static void wavesel_arrayZoom(t_wavesel *x);
 static void wavesel_drawbase(t_wavesel* x);
 void wavesel_drawme(t_wavesel *x, t_glist *glist, int firsttime);
 static void wavesel_draw_foreground(t_wavesel* x);
@@ -153,7 +168,7 @@ static void wavesel_setmode(t_wavesel *x, t_float mode)
 {
     if (mode < 0 || mode > 4) return;
     x->mode = (int)mode;
-    if (x->mode == 3 || x->mode == 4)
+    if (x->mode == 4)
         post("wavesel: mode %d not implemented yet", x->mode);
 }
 
@@ -246,6 +261,20 @@ static void wavesel_move_element(t_wavesel *x, int num)
         e->w, e->h);
 }
 
+static void wavesel_set_canvas_list(t_wavesel *x)
+{
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_VIEW_START],   (t_float)x->canvas_startForeground);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_VIEW_END],     (t_float)x->canvas_endForeground);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_SELECT_START], (t_float)x->canvas_startcursor);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_SELECT_END],   (t_float)x->canvas_endcursor);
+}
+
+static void wavesel_set_mouse_list(t_wavesel *x)
+{
+    SETFLOAT(&x->outlet_mouse[MOUSE_LIST_X],   (t_float)x->canvas_x);
+    SETFLOAT(&x->outlet_mouse[MOUSE_LIST_Y],   (t_float)x->canvas_y);
+//    SETFLOAT(&x->outlet_mouse[MOUSE_STATE],   0.f);
+}
 static void wavesel_move_background_selection(t_wavesel *x, int xx, 
     int w)
 {
@@ -531,16 +560,16 @@ static void wavesel_color_all_columns(t_wavesel *x)
 static void wavesel_motion_selectmode(t_wavesel *x, t_floatarg dx)
 {   
     x->canvas_x += dx;
-    x->canvas_x = (floor(x->canvas_x)  < 0) ? x->canvas_startcursor : x->canvas_x;
-    x->canvas_x = (floor(x->canvas_x + 0.5f) > x->canvas_endForeground) ? x->canvas_endForeground : x->canvas_x;
+    x->canvas_x = ((int)(x->canvas_x)  < 0) ? x->canvas_startcursor : x->canvas_x;
+    x->canvas_x = ((int)(x->canvas_x + 0.5f) > x->canvas_endForeground) ? x->canvas_endForeground : x->canvas_x;
 
     if (x->canvas_x > x->canvas_clickOrigin) // right side
     {
         wavesel_color_columns(x, x->canvas_startcursor, x->canvas_clickOrigin, 0);
-        wavesel_color_columns(x, x->canvas_clickOrigin, floor(x->canvas_x), 1);
-        wavesel_color_columns(x, floor(x->canvas_x), x->canvas_endcursor, 0);
+        wavesel_color_columns(x, x->canvas_clickOrigin, (int)(x->canvas_x), 1);
+        wavesel_color_columns(x, (int)(x->canvas_x), x->canvas_endcursor, 0);
         x->canvas_startcursor = x->canvas_clickOrigin;
-        x->canvas_endcursor   = floor(x->canvas_x);
+        x->canvas_endcursor   = (int)(x->canvas_x);
         outlet_float(x->out4, x->canvas_x * x->outlet_outputFactor);
     }
     else //left side
@@ -548,11 +577,10 @@ static void wavesel_motion_selectmode(t_wavesel *x, t_floatarg dx)
         wavesel_color_columns(x, x->canvas_clickOrigin, x->canvas_endcursor, 0);
         wavesel_color_columns(x, x->canvas_x, x->canvas_clickOrigin, 1);
         wavesel_color_columns(x, x->canvas_startcursor, x->canvas_x, 0);
-        x->canvas_startcursor = floor(x->canvas_x);
+        x->canvas_startcursor = (int)(x->canvas_x);
         x->canvas_endcursor   = x->canvas_clickOrigin;
         outlet_float(x->out3, x->canvas_x * x->outlet_outputFactor);
-    }
-    outlet_float(x->out5, 2);    
+    }   
 }
 
 static void wavesel_motion_loopmode(t_wavesel *x, t_floatarg dx, 
@@ -601,7 +629,34 @@ static void wavesel_motion_loopmode(t_wavesel *x, t_floatarg dx,
 
     outlet_float(x->out3, (x->canvas_startcursor * x->outlet_outputFactor));
     outlet_float(x->out4, (x->canvas_endcursor * x->outlet_outputFactor));
-    outlet_float(x->out5, 2);
+}
+
+static void wavesel_motion_zoom_move_mode(t_wavesel *x, t_float dx, t_float dy)
+{
+    int range = x->canvas_arrayViewEnd - x->canvas_arrayViewStart;
+    
+    if (x->canvas_samplesPerColumn < MAXZOOM && dy < 0)
+        return;
+    
+    x->canvas_arrayViewStart -= range * dy * ZOOMFACTOR;
+    x->canvas_arrayViewEnd   += range * dy * ZOOMFACTOR;
+    
+    if (x->canvas_arrayViewStart > 0 && x->canvas_arrayViewEnd < x->array_size)
+    {
+        x->canvas_arrayViewStart -= range * dx * ZOOMFACTOR;
+        x->canvas_arrayViewEnd   -= range * dx * ZOOMFACTOR;
+    }
+
+    x->canvas_arrayViewStart = (x->canvas_arrayViewStart < 0) 
+        ? 0 : x->canvas_arrayViewStart;
+    x->canvas_arrayViewStart = (x->canvas_arrayViewStart > x->array_size) 
+        ? x->array_size : x->canvas_arrayViewStart;
+    x->canvas_arrayViewEnd   = (x->canvas_arrayViewEnd > x->array_size) 
+        ? x->array_size : x->canvas_arrayViewEnd;
+    x->canvas_arrayViewEnd   = (x->canvas_arrayViewEnd < 0) 
+        ? 0 : x->canvas_arrayViewEnd;
+    
+    wavesel_arrayZoom(x);
 }
 
 static void wavesel_motion(t_wavesel *x, t_floatarg dx, t_floatarg dy)
@@ -618,14 +673,19 @@ static void wavesel_motion(t_wavesel *x, t_floatarg dx, t_floatarg dy)
             wavesel_motion_loopmode(x, dx, dy);
             break;
         case MODE_MOVE:
+            wavesel_motion_zoom_move_mode(x, dx, dy);
             break;
         case MODE_DRAW:
              break;
         }
+        outlet_list(x->out6, 0, 4, x->outlet_canvas);
+        wavesel_set_mouse_list(x);
+        SETFLOAT(&x->outlet_mouse[MOUSE_LIST_STATE], 2.f);
+        outlet_list(x->out5, 0, 3, x->outlet_mouse);
     }
     wavesel_drawme(x, x->x_glist, 0);
     wavesel_draw_columns(x);
-    outlet_float(x->out6, 0);
+    wavesel_set_canvas_list(x);
 }
 
 void wavesel_key(t_wavesel *x, t_floatarg f)
@@ -681,8 +741,6 @@ static void wavesel_click(t_wavesel *x,
 
     x->canvas_x = xpos - x->x_obj.te_xpix;
     x->canvas_y = ypos - x->x_obj.te_ypix;
-
-    outlet_float(x->out5, 0);
  
     if (x->canvas_x > 0 && x->canvas_x < x->canvas_width -2 && x->canvas_y > 0 && 
         x->canvas_y < x->canvas_height)
@@ -700,6 +758,11 @@ static void wavesel_click(t_wavesel *x,
         case MODE_DRAW:
             break;
         }
+        wavesel_set_canvas_list(x);
+        outlet_list(x->out6, 0, 4, x->outlet_canvas);
+        wavesel_set_mouse_list(x);
+        SETFLOAT(&x->outlet_mouse[MOUSE_LIST_STATE], 1.f);
+        outlet_list(x->out5, 0, 3, x->outlet_mouse);
     }
     wavesel_drawme(x, x->x_glist, 0);
 }
@@ -795,27 +858,27 @@ void wavesel_deletenum(t_wavesel* x,float num)
 static void wavesel_get_column_size(t_wavesel* x, int column, 
     t_word *vec)
 {
-    int sampleOffset   = (int)(column * x->canvas_samplesPerColumn);
-    int sampleEndPoint = sampleOffset + (int)x->canvas_samplesPerColumn;
-    int i;
-    t_float maxSize = 0.5;
-    t_float upper = 0, lower = 0;
-    for (i = sampleOffset; i < sampleEndPoint; i++) 
-    {
-        upper = (upper < (vec[i].w_float)) ? vec[i].w_float : upper;
-        lower = (lower > (vec[i].w_float)) ? vec[i].w_float : lower;
-    }
-    if (x->canvas_clipmode) 
-    {
-         x->canvas_columnTop = (upper >  maxSize) ?  maxSize : upper;
-         x->x_currentElementBottom = 
-             (lower < -maxSize) ? -maxSize : lower;
+    int sampleOffset = x->canvas_arrayViewStart + 
+        (int)(column * x->canvas_samplesPerColumn);
+    t_float upper = 0.f, lower = 0.f;
+    if (x->canvas_samplesPerColumn > 1.f) {
+        int sampleEndPoint = sampleOffset + (int)x->canvas_samplesPerColumn;
+        int i;
+        for (i = sampleOffset; i < sampleEndPoint; i++) 
+        {
+            upper = (upper < (vec[i].w_float)) ? vec[i].w_float : upper;
+            lower = (lower > (vec[i].w_float)) ? vec[i].w_float : lower;
+        }
     }
     else
     {
-        x->canvas_columnTop = upper;
-        x->x_currentElementBottom = lower;
+        if (vec[sampleOffset].w_float > 0)
+            upper = vec[sampleOffset].w_float;
+        else
+            lower = vec[sampleOffset].w_float;
     }
+    x->canvas_columnTop = upper;
+    x->canvas_columnBottom = lower;
 }
 
 static void wavesel_draw_columns(t_wavesel* x)
@@ -836,11 +899,19 @@ static void wavesel_draw_columns(t_wavesel* x)
     for (column = 0; column <= columnCount; column++)
     {
         wavesel_get_column_size(x, column, vec);
-        x->canvas_element[column + x->canvas_startForeground]->y = middle - 
-            (int)(x->canvas_columnTop * x->canvas_height);
+        t_float upper = (int)(x->canvas_columnTop * x->canvas_height * x->canvas_columnGain);
+        t_float lower = (int)(x->canvas_columnBottom * x->canvas_height * x->canvas_columnGain); // + 1 ??
+        t_float maxSize = 0.5f * x->canvas_height;
+        
+        if (x->canvas_clipmode) 
+        {
+             upper = (upper >  maxSize) ?  maxSize : upper;
+             lower = (lower < -maxSize) ? -maxSize : lower;
+        }
+        x->canvas_element[column + x->canvas_startForeground]->y = 
+            (int)(middle - upper);
         x->canvas_element[column + x->canvas_startForeground]->h = 
-            (int)((x->canvas_columnTop - 
-            x->x_currentElementBottom) * x->canvas_height + 1);
+            (int)(upper - lower);
     }
 }
 
@@ -925,6 +996,8 @@ static void wavesel_state(t_wavesel* x)
     post("canvas_width: %d",           x->canvas_width);
     post("canvas_height: %d",          x->canvas_height);
     post("canvas_numelem: %d",         x->canvas_numelem);
+    post("canvas_arrayViewStart: %d",  x->canvas_arrayViewStart);
+    post("canvas_arrayViewEnd: %d",    x->canvas_arrayViewEnd);
     post("canvas_startcursor (relative to canvas): %d",     x->canvas_startcursor);
     post("canvas_endcursor (relative to canvas): %d",       x->canvas_endcursor);
     post("selected bg width: %d", x->canvas_endcursor - x->canvas_startcursor);
@@ -935,6 +1008,7 @@ static void wavesel_state(t_wavesel* x)
     post("arrayname: %s",       x->array_name->s_name);
     post("arraysize: %d",       x->array_size);
     post("canvas_samplesPerColumn: %f", x->canvas_samplesPerColumn);
+    post("canvas_vzoom: %f",           x->canvas_columnGain);
     post("system_ksr: %f",             x->system_ksr);
     post("outlet_outputFactor: %f",    x->outlet_outputFactor);
     post("canvas_mode: %d",            x->mode);
@@ -971,6 +1045,8 @@ static void wavesel_setarray(t_wavesel *x, t_symbol *s)
         x->canvas_samplesPerColumn = (t_float)x->array_size / 
             (t_float)x->canvas_width;
         x->outlet_outputFactor = x->canvas_samplesPerColumn / x->system_ksr;
+        x->canvas_arrayViewStart = 0;
+        x->canvas_arrayViewEnd   = x->array_size;
     } else {
         post("wavesel: no array \"%s\" (error %d)", 
             x->array_name->s_name, array);
@@ -984,6 +1060,24 @@ static void wavesel_setarray(t_wavesel *x, t_symbol *s)
     outlet_float(x->out4, x->canvas_endcursor   * x->outlet_outputFactor);
     wavesel_draw_columns(x);
     wavesel_drawme(x, x->x_glist, 0);
+}
+
+static void wavesel_arrayZoom(t_wavesel *x)
+{
+    int arrayViewSize = x->canvas_arrayViewEnd - x->canvas_arrayViewStart;
+    
+    x->canvas_samplesPerColumn = arrayViewSize / (t_float)x->canvas_width;
+    x->outlet_outputFactor = x->canvas_samplesPerColumn / x->system_ksr;
+    
+    wavesel_draw_columns(x);
+    wavesel_drawme(x, x->x_glist, 0);
+    
+    outlet_float(x->out1, x->canvas_arrayViewStart / x->system_ksr);
+    outlet_float(x->out2, x->canvas_arrayViewEnd / x->system_ksr);
+    outlet_float(x->out3, x->canvas_startcursor * x->outlet_outputFactor);
+    outlet_float(x->out4, x->canvas_endcursor   * x->outlet_outputFactor);
+    
+    
 }
 
 static void wavesel_setForegroundColor(t_wavesel *x, t_symbol *s)
@@ -1023,10 +1117,10 @@ static void wavesel_tick(t_wavesel *x)
     x->system_clockRunning = 0;
     if (x->array_viewRefresh == 0)
         return;
-/*    if (!x->x_mouseDown)
-    {
+//    if (!x->x_mouseDown)
+//    {
         wavesel_draw_columns(x);
-    } */
+//    }
     clock_delay(x->system_clock, x->array_viewRefresh);
     x->system_clockRunning = 1;
 }
@@ -1115,15 +1209,26 @@ static void *wavesel_line(t_wavesel *x, t_float f)
 
 static void *wavesel_clipdraw(t_wavesel *x, t_float f)
 {
-    x->canvas_clipmode = (int)(f < 0) ? 0 : 1;
+    x->canvas_clipmode = (int)(f < 0) ? 0 : f;
     return 0;
 }
 
 static void *wavesel_doup(t_wavesel *x, t_float f)
 {
     x->canvas_mouseDown = (int)(f > 0) ? 0 : 1;
-    outlet_float(x->out5, 3);
+//    wavesel_set_mouse_list(x);
+//    SETFLOAT(&x->outlet_mouse[MOUSE_LIST_STATE], 0.f);
+//    outlet_list(x->out5, 0, 3, x->outlet_mouse);
+
     return 0;
+}
+
+static void *wavesel_vzoom(t_wavesel *x, t_float f)
+{
+    x->canvas_columnGain = (f > 0) ? f : 1;
+    
+    wavesel_drawme(x, x->x_glist, 0);
+    wavesel_draw_columns(x);
 }
 
 static void *wavesel_loadbang(t_wavesel *x)
@@ -1168,12 +1273,15 @@ static void *wavesel_new(t_symbol* s, t_float w, t_float h)
     if ((int)h > WAVESEL_MINHEIGHT)
         x->canvas_height = h;
 
+    x->canvas_arrayViewStart = 0;
+    x->canvas_arrayViewEnd   = 0;
     x->canvas_startcursor = 0;
     x->canvas_endcursor   = 0;
     x->canvas_foregroundColor = gensym(FGCOLOR);
     x->canvas_backgroundColor = gensym(BGCOLOR);
     x->canvas_foregroundSelectedColor = gensym(FGSELCOLOR);
     x->canvas_backgroundSelectedColor = gensym(BGSELCOLOR);
+    x->canvas_columnGain = 1;
     wavesel_drawbase(x);
     wavesel_draw_foreground(x);
     wavesel_draw_columns(x);
@@ -1182,8 +1290,16 @@ static void *wavesel_new(t_symbol* s, t_float w, t_float h)
     x->out2 = outlet_new(&x->x_obj, &s_float);
     x->out3 = outlet_new(&x->x_obj, &s_float);
     x->out4 = outlet_new(&x->x_obj, &s_float);
-    x->out5 = outlet_new(&x->x_obj, &s_float);
-    x->out6 = outlet_new(&x->x_obj, &s_float);
+    x->out5 = outlet_new(&x->x_obj, &s_list);
+    x->out6 = outlet_new(&x->x_obj, &s_list);
+    
+    SETFLOAT(&x->outlet_mouse[MOUSE_LIST_X],     0.f);
+    SETFLOAT(&x->outlet_mouse[MOUSE_LIST_Y],     0.f);
+    SETFLOAT(&x->outlet_mouse[MOUSE_LIST_STATE], 0.f);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_VIEW_START],   0.f);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_VIEW_END],     0.f);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_SELECT_START], 0.f);
+    SETFLOAT(&x->outlet_canvas[CANVAS_LIST_SELECT_END],   0.f); 
     
 // handle start  
     t_waveselhandle *wsh;
@@ -1225,6 +1341,8 @@ void wavesel_tilde_setup(void)
         gensym("line"), A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_setarray, 
         gensym("set"), A_SYMBOL, 0);
+    class_addmethod(wavesel_class, (t_method)wavesel_vzoom, 
+        gensym("vzoom"), A_FLOAT, 0);
 
 // wavesel specific
     class_addmethod(wavesel_class, (t_method)wavesel_setarray, 
