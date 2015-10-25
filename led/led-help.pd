@@ -1,0 +1,7 @@
+#N canvas 1 82 450 300 10;
+#X msg 85 73 0;
+#X msg 142 70 1;
+#X obj 115 133 led 30 0 empty empty empty 17 7 0 10 -1 -258113 -1 1
+1;
+#X connect 0 0 2 0;
+#X connect 1 0 2 0;
