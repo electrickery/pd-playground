@@ -41,7 +41,7 @@ void led_draw_update(t_led *x, t_glist *glist)
         t_canvas *canvas=glist_getcanvas(glist);
 
         sys_vgui(".x%lx.c itemconfigure %lxBUT -fill #%6.6x\n", canvas, x,
-                 (x->x_on!=0.0)?x->x_gui.x_fcol:x->x_gui.x_bcol);
+                 (x->x_on!=0.0) ? x->x_gui.x_fcol : x->x_gui.x_bcol);
     }
 }
 
@@ -88,9 +88,11 @@ void led_draw_move(t_led *x, t_glist *glist)
         w = 3;
     sys_vgui(".x%lx.c coords %lxBASE %d %d %d %d\n",
              canvas, x, xx, yy, xx + x->x_gui.x_w, yy + x->x_gui.x_h);
-    sys_vgui(".x%lx.c itemconfigure %lxBUT -width %d\n", canvas, x, w);
+//    sys_vgui(".x%lx.c itemconfigure %lxBUT -width %d\n", canvas, x, w);
+    sys_vgui(".x%lx.c itemconfigure %lxBUT\n", canvas, x);
     sys_vgui(".x%lx.c coords %lxBUT %d %d %d %d\n",
-             canvas, x, xx+w+1, yy+w+1, xx + x->x_gui.x_w-w, yy + x->x_gui.x_h-w);
+             canvas, x, xx + 1, yy + 1,
+             xx + x->x_gui.x_w-1, yy + x->x_gui.x_h-1);
     sys_vgui(".x%lx.c coords %lxLABEL %d %d\n",
              canvas, x, xx+x->x_gui.x_ldx, yy+x->x_gui.x_ldy);
     if(!x->x_gui.x_fsf.x_snd_able)
@@ -106,7 +108,7 @@ void led_draw_erase(t_led* x, t_glist* glist)
     t_canvas *canvas=glist_getcanvas(glist);
 
     sys_vgui(".x%lx.c delete %lxBASE\n", canvas, x);
-    sys_vgui(".x%lx.c delete %lBUT\n", canvas, x);
+    sys_vgui(".x%lx.c delete %lxBUT\n", canvas, x);
     sys_vgui(".x%lx.c delete %lxLABEL\n", canvas, x);
     if(!x->x_gui.x_fsf.x_snd_able)
         sys_vgui(".x%lx.c delete %lxOUT%d\n", canvas, x, 0);
@@ -125,7 +127,7 @@ void led_draw_config(t_led* x, t_glist* glist)
     sys_vgui(".x%lx.c itemconfigure %lxBASE -fill #%6.6x\n", canvas, x,
              x->x_gui.x_bcol);
     sys_vgui(".x%lx.c itemconfigure %lxBUT -fill #%6.6x\n", canvas, x,
-             x->x_on?x->x_gui.x_fcol:x->x_gui.x_bcol);
+             x->x_on ? x->x_gui.x_fcol :x->x_gui.x_bcol);
 }
 
 void led_draw_io(t_led* x, t_glist* glist, int old_snd_rcv_flags)
@@ -241,7 +243,7 @@ static void led_properties(t_gobj *z, t_glist *owner)
 
 static void led_bang(t_led *x)
 {
-    x->x_on = (x->x_on==0.0)?x->x_nonzero:0.0;
+    x->x_on = (x->x_on==0.0) ? x->x_nonzero : 0.0;
     (*x->x_gui.x_draw)(x, x->x_gui.x_glist, IEM_GUI_DRAW_MODE_UPDATE);
     outlet_float(x->x_gui.x_obj.ob_outlet, x->x_on);
     if(x->x_gui.x_fsf.x_snd_able && x->x_gui.x_snd->s_thing)
@@ -283,7 +285,7 @@ static void led_set(t_led *x, t_floatarg f)
 {
     int old = (x->x_on != 0);
     x->x_on = f;
-    if (f != 0.0 && pd_compatibilitylevel < 46)
+    if (f != 0.0)
         x->x_nonzero = f;
     if ((x->x_on != 0) != old)
         (*x->x_gui.x_draw)(x, x->x_gui.x_glist, IEM_GUI_DRAW_MODE_UPDATE);
@@ -468,6 +470,6 @@ void led_setup(void)
     class_sethelpsymbol(led_class, gensym("led"));
     class_setsavefn(led_class, led_save);
     class_setpropertiesfn(led_class, led_properties);
-    if (pd_compatibilitylevel > 42)
-        post("led 0.1, based on g_toggle");
+
+    post("led 0.1, based on g_toggle");
 }
