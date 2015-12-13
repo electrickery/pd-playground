@@ -1,11 +1,12 @@
 /* wavesel, cheap waveform knock-off, based on gcanvas from Guenter Geiger
  * Fred Jan Kraan, fjkraan@xs4all.nl, 2015-06 - 2015-07 */
 
-
+#include <math.h>
 #include "m_pd.h"
 #include "g_canvas.h"
 #include "s_stuff.h"
 #include "hammer/gui.h"  // just for the mouse-up, silly!
+#include "cheapsqrt.h"
 
 /* ------------------------ wavesel ----------------------------- */
 
@@ -597,7 +598,8 @@ static void wavesel_updateSelectRange(t_wavesel *x)
 static void wavesel_motion_selectMode(t_wavesel *x, t_floatarg dx)
 {   
     int width = x->canvas_endForeground - x->canvas_startForeground;
-    x->canvas_x += dx;
+    t_float sqrt_dx = (dx > 0) ? sqrt(dx) : -sqrt(-dx); 
+    x->canvas_x += sqrt_dx;
     x->canvas_x = ((int)(x->canvas_x)  < 0) ? x->canvas_startcursor : x->canvas_x;
     x->canvas_x = ((int)(x->canvas_x + 0.5f) > width) ? width : x->canvas_x;
 
@@ -638,7 +640,9 @@ static void wavesel_motion_loopMode(t_wavesel *x, t_floatarg dx,
 {
     int i;
     int width = x->canvas_endForeground - x->canvas_startForeground;
-    int dix = (int)dx;
+    t_float sqrt_dx = (dx > 0) ? sqrt(dx) : -sqrt(-dx); 
+    x->canvas_x += sqrt_dx;
+    int dix = (int)sqrt_dx;
     int diy = (int)dy;
     int dstart = dix + diy;
     int dend   = dix - diy;
