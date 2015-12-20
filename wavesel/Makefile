@@ -4,16 +4,17 @@ lib.name = wavesel~
 
 cflags = -Isrc/shared
 
-hgui := \
+hws := \
 src/shared/hammer/gui.c \
-src/shared/common/loud.c
+src/shared/common/loud.c \
+src/shared/unstable/forky.c
 
-wavesel~.class.sources := src/wavesel~.c $(hgui)
+wavesel~.class.sources := src/wavesel~.c $(hws)
 
 datafiles = \
 wavesel~-help.pd \
 ../LICENSE.txt \
-README.txt \
+README.md \
 voice.wav \
 voice2.wav 
 
