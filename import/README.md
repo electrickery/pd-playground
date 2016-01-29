@@ -1,6 +1,6 @@
 This the 'import' object isolated from the pd-extended core. It is build
 using pdlibbuilder allowing it to be used with pd-vanilla. The code is 
-exactly as it was written by Hans Cristoph Steiner for pd-extended 0.44.
+exactly as it was written by Hans-Christoph Steiner for pd-extended 0.44.
 
 The makefile system used is Makefile.pdlibbuilder which is intended as a 
 Makefile Template replacement. It tries to find the include files in the 
