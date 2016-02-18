@@ -1,4 +1,4 @@
-#N canvas 518 82 569 531 10;
+#N canvas 505 79 569 535 10;
 #X obj 0 687 cnv 15 552 21 empty empty empty 20 12 0 14 -233017 -33289
 0;
 #X obj 1 380 cnv 3 550 3 empty empty inlets 8 12 0 13 -228856 -1 0
@@ -43,8 +43,6 @@ The RMS mode of the average~ object is considerably more CPU intensive
 than the absolute mode. The absolute mode often works as well as the
 RMS mode in many level-detection tasks.;
 #X text 12 23 reports various forms of average value of signal;
-#X obj 165 73 cycle~ 2;
-#X obj 148 48 cycle~ 100;
 #X floatatom 311 111 0 0 0 0 - - -;
 #X msg 354 73 rms;
 #X msg 238 73 bipolar;
@@ -64,17 +62,13 @@ is 100 2) message - sets mode \, as shown above. default is bipolar.
 #X msg 343 137 500;
 #X msg 375 137 1000;
 #X msg 311 137 10;
-#X obj 520 260 dspSwitch~;
 #X text 169 413 - bipolar: -sets bipolar average mode.;
 #X text 169 429 - absolute: -sets absolute average mode.;
 #X text 169 444 - rms: -sets roor mean square (RMS) average mode.;
 #X text 169 392 - the signal to average;
 #X text 169 462 - the number of samples the average is applied to;
-#X obj 148 240 cyclone/Scope~ 130 130 256 3 128 -0.1 0.1 0 0 0 0 102
-255 51 135 135 135 0;
-#X obj 284 241 cyclone/Scope~ 130 130 256 3 128 -1 1 0 0 0 0 102 255
+#X obj 302 241 cyclone/Scope~ 130 130 256 3 128 -1 1 0 0 0 0 102 255
 51 135 135 135 0;
-#X obj 12 244 cyclone/Snapshot~ 100;
 #X floatatom 12 273 8 0 0 0 - - -, f 8;
 #X msg 9 197 range \$1 \$2;
 #N canvas 397 674 450 300 ranger 0;
@@ -117,35 +111,44 @@ is 100 2) message - sets mode \, as shown above. default is bipolar.
 #X msg 76 77 0.5;
 #X msg 76 60 1;
 #X msg 76 43 5;
-#X obj 149 208 cyclone/average2~ 1000;
-#X connect 13 0 19 1;
-#X connect 14 0 19 0;
-#X connect 15 0 56 0;
-#X connect 16 0 56 0;
-#X connect 17 0 56 0;
-#X connect 18 0 56 0;
-#X connect 19 0 36 0;
-#X connect 19 0 56 0;
-#X connect 26 0 56 0;
-#X connect 27 0 56 0;
-#X connect 28 0 56 0;
-#X connect 37 0 38 0;
+#X obj 149 195 average2~ 1000;
+#X obj 520 260 cyclone/dspSwitch~;
+#X obj 280 247 vsl 15 120 -1 1 0 0 empty empty empty 0 -9 0 10 -262144
+-1 -1 3866 1;
+#X obj 146 240 cyclone/Scope~ 130 130 256 3 128 -1 1 0 0 0 0 102 255
+51 135 135 135 0;
+#X obj 149 48 osc~ 19;
+#X obj 165 73 osc~ 19.1;
+#X msg 443 74 status;
+#X connect 13 0 51 0;
+#X connect 14 0 51 0;
+#X connect 15 0 51 0;
+#X connect 16 0 51 0;
+#X connect 17 0 32 0;
+#X connect 17 0 51 0;
+#X connect 24 0 51 0;
+#X connect 25 0 51 0;
+#X connect 26 0 51 0;
+#X connect 34 0 36 0;
+#X connect 34 0 54 0;
+#X connect 35 0 34 0;
+#X connect 37 0 35 0;
+#X connect 38 0 35 0;
 #X connect 39 0 35 0;
-#X connect 39 0 41 0;
-#X connect 40 0 39 0;
-#X connect 42 0 40 0;
-#X connect 43 0 40 0;
-#X connect 44 0 40 0;
-#X connect 45 0 40 0;
-#X connect 46 0 40 0;
-#X connect 47 0 40 0;
-#X connect 48 0 40 0;
-#X connect 49 0 40 1;
-#X connect 50 0 40 1;
-#X connect 51 0 40 1;
-#X connect 52 0 40 1;
-#X connect 53 0 40 1;
-#X connect 54 0 40 1;
-#X connect 55 0 40 1;
-#X connect 56 0 35 0;
-#X connect 56 0 37 0;
+#X connect 40 0 35 0;
+#X connect 41 0 35 0;
+#X connect 42 0 35 0;
+#X connect 43 0 35 0;
+#X connect 44 0 35 1;
+#X connect 45 0 35 1;
+#X connect 46 0 35 1;
+#X connect 47 0 35 1;
+#X connect 48 0 35 1;
+#X connect 49 0 35 1;
+#X connect 50 0 35 1;
+#X connect 51 0 33 0;
+#X connect 51 0 53 0;
+#X connect 51 1 54 0;
+#X connect 55 0 17 0;
+#X connect 56 0 17 1;
+#X connect 57 0 51 0;

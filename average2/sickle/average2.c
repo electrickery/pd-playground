@@ -36,10 +36,14 @@ typedef struct _average
     t_float   x_bipolarSum;
     t_float   x_absoluteSum;
     t_float   x_rmsSum;
+    t_float   x_average;
     
     t_float  *x_buffer;
     int       x_head;
     int       x_tail;
+    
+    t_clock   *x_clock;
+    t_outlet  *x_floatout;
 } t_average;
 
 static t_class *average_class;
@@ -88,6 +92,11 @@ static void average_float(t_average *x, t_float f)
     }
 }
 
+static void average_tick(t_average *x)
+{
+    outlet_float(x->x_floatout, x->x_average);
+}
+
 static void average_bipolar(t_average *x)
 {
     average_setmode(x, AVERAGE_BIPOLAR);
@@ -127,6 +136,7 @@ static t_int *average_perform(t_int *w)
     t_float *in  = (t_float *)(w[3]);
     t_float *out = (t_float *)(w[4]);
     t_float tailValue;
+    t_float tmpAverage;
     int blockSize = nblock;
     while (nblock--) {
         x->x_buffer[x->x_head] = *in++;
@@ -142,12 +152,21 @@ static t_int *average_perform(t_int *w)
             x->x_rmsSum      += *in * *in;
             x->x_rmsSum      -= tailValue * tailValue;
         }
-        if (x->x_mode == AVERAGE_BIPOLAR)
-            *out++ = x->x_bipolarSum / x->x_sample_interval;
+        if (x->x_mode == AVERAGE_BIPOLAR) 
+        {
+            tmpAverage = x->x_bipolarSum / x->x_sample_interval;
+            *out++ = tmpAverage;
+        }
         else if (x->x_mode == AVERAGE_ABSOLUTE)
-            *out++ = x->x_absoluteSum / x->x_sample_interval;
+        {
+            tmpAverage = x->x_absoluteSum / x->x_sample_interval;
+            *out++ = tmpAverage;
+        }
         else // AVERAGE_RMS
-            *out++ = cheapsqrt(x->x_rmsSum / x->x_sample_interval);
+        {
+            tmpAverage = cheapsqrt(x->x_rmsSum / x->x_sample_interval);
+            *out++ = tmpAverage;
+        }
         x->x_head++;
         x->x_tail++;
         if (x->x_head >= x->x_bufferSize)
@@ -155,6 +174,8 @@ static t_int *average_perform(t_int *w)
         if (x->x_tail >= x->x_bufferSize)
             x->x_tail = 0;
     }
+    x->x_average = tmpAverage;
+    clock_delay(x->x_clock, 0);
     return (w + 5);
 }
 
@@ -168,6 +189,7 @@ static void average_free(t_average *x)
 {
     if (x->x_buffer) 
         freebytes(x->x_buffer, x->x_bufferSize * sizeof(*x->x_buffer));
+    if (x->x_clock) clock_free(x->x_clock);
 }
 
 static void *average_new(t_symbol *s, t_floatarg f)
@@ -205,8 +227,12 @@ static void *average_new(t_symbol *s, t_floatarg f)
     x->x_head = AVERAGE_DEF_SAMPLE_INTERVAL;
     x->x_tail = 0;
     x->x_sample_interval = AVERAGE_DEF_SAMPLE_INTERVAL;
+    x->x_average = 0;
     
+    x->x_floatout = outlet_new((t_object *)x, &s_float);
     outlet_new(&x->x_sic, &s_signal);
+    x->x_clock = clock_new(x, (t_method)average_tick);
+
     return (x);
 }
 
