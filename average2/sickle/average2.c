@@ -59,6 +59,7 @@ static void average_status(t_average *x)
     post("x_bipolarSum: %f",      x->x_bipolarSum);
     post("x_absoluteSum: %f",     x->x_absoluteSum);
     post("x_rmsSum: %f",          x->x_rmsSum);
+    post("x_average: %f",         x->x_average);
     int major, minor, bugfix;
     sys_getversion(&major, &minor, &bugfix);
     post("sys version: %i.%i.%i", major, minor, bugfix);
@@ -181,7 +182,6 @@ static t_int *average_perform(t_int *w)
 
 static void average_dsp(t_average *x, t_signal **sp)
 {
-    
     dsp_add(average_perform, 4, x, sp[0]->s_n, sp[0]->s_vec, sp[1]->s_vec);
 }
 
