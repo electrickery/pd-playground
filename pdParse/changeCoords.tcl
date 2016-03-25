@@ -1,6 +1,6 @@
 #!/usr/bin/env tclsh
 #
-# changeCoords.tcl v0.2
+# changeCoords.tcl v0.3
 # fjkraan@xs4all.nl
 
 if {$argc < 4} {
@@ -56,9 +56,11 @@ while {[gets $f patchLine] >= 0} {
 #            puts -nonewline "$lineCount: "
             puts $patchLine
         }
-        incr lineCount
     } else {
-        puts $patchLine
+#         puts -nonewline "$lineCount: "
+         puts $patchLine
     }
+    incr lineCount
+
 }
 close $f
