@@ -1,0 +1,3 @@
+getObjectsDescriptions.py: Generates an object/class list based on help-patch file names. Adds a description if it is present in the patch.
+
+getObjectsDescriptions is intended as a script that can generate an initial list of objects or classes in a library. The result still has to be checked by hand as not every object has its own help-patch, not all help patches have a META sub-patch and not all META sub-patches have a DESCRIPTION field.
