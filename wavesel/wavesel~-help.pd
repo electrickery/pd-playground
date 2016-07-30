@@ -230,7 +230,7 @@ is partially implemented and there are performance problems.;
 -1 -1 995 1;
 #X floatatom 59 293 5 0 0 0 - - -, f 5;
 #X msg 20 219 1;
-#X obj 340 453 cyclone/wave~ \$0-voice;
+#X obj 340 453 cyclone/_wave~ \$0-voice;
 #X connect 0 0 73 0;
 #X connect 0 1 74 0;
 #X connect 0 2 1 0;

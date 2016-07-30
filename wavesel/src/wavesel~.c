@@ -6,177 +6,12 @@
 #include "g_canvas.h"
 #include "s_stuff.h"
 #include "shared.h"
-#include "common/loud.h"
+//#include "common/loud.h"
 #include "hammer/gui.h"  // just for the mouse-up, silly!
 #include "unstable/forky.h"
+#include "wavesel~.h"
 
 /* ------------------------ wavesel ----------------------------- */
-
-
-#define DEFAULTSIZE 80
-#define TAGBUFFER   64
-//#define XLETTAGBUFFER 8
-#define MILLIS      0.001
-#define ZOOMFACTOR  0.02f
-#define MAXZOOM     0.1f // columns per sample
-
-static t_class *wavesel_class;
-static t_class *waveselhandle_class;
-
-// element array object types
-#define RECT 1
-#define LINE 2
-
-// default colors
-#define BACKDROP   "white"
-#define BORDER     "black"
-#define BGCOLOR    "white"
-#define BGSELCOLOR "black"
-#define FGCOLOR    "gray"
-#define FGSELCOLOR "green"
-#define MAX5FOREGROUND "black"
-#define MAX5BACKGROUND "#d7bd6e"
-#define MAX5SELECTEDFOREGROUND "black"
-#define MAX5SELECTEDBACKGROUND "6b5e37"
-
-// setmodes
-#define MODE_NONE   0  // does nothing
-#define MODE_SELECT 1  // x-axis selects left or right of clicked position
-#define MODE_LOOP   2  // click centers the selected area around the clicked position. x-axis moves it, y-axis widens/narrows it
-#define MODE_MOVE   3  // y-axis zooms in/out, x-axis moves zoomed area. Selected area remains unchanged. Centered around clickpoint
-#define MODE_DRAW   4  // not implemented. writes to array.
-
-// objects defaults and minimum dimensions
-#define WAVESEL_DEFWIDTH     322
-#define WAVESEL_DEFHEIGHT    82
-#define WAVESEL_SELBDWIDTH   3.0
-#define WAVESEL_SELCOLOR     "#8080ff"
-#define WAVESELHANDLE_WIDTH  10
-#define WAVESELHANDLE_HEIGHT 10
-#define WAVESELHANDLE_COLOR  ""
-#define WAVESEL_GRIDWIDTH    0.9
-#define WAVESEL_MINWIDTH     42
-#define WAVESEL_MINHEIGHT    22
-#define WAVESEL_MAXWIDTH     2050
-#define WAVESEL_MAXHEIGHT    1500
-#define WAVESEL_BUFREFRESH   0  // Max 5 default is 500
-#define WAVESEL_XLETHEIGHT   2     // Pd-vanilla is 1, Pd-extended is 2
-#define MAXELEM              2048 
-// MAXELEM is the maximum element array size. First element is the
-// enclosing rectangle, second is the selected background rectangle. The
-// remainder is for the sample representing columns.
-#define MOUSE_LIST_X     0
-#define MOUSE_LIST_Y     1
-#define MOUSE_LIST_STATE 2
-#define CANVAS_LIST_VIEW_START   0
-#define CANVAS_LIST_VIEW_END     1
-#define CANVAS_LIST_SELECT_START 2
-#define CANVAS_LIST_SELECT_END   3
-
-typedef struct _elem {
-    int x;
-    int y;
-    int w;
-    int h;
-    int g;
-    int type;    
-    char* color;
-    char* outlinecolor;
-} t_element;
-
-typedef struct _wavesel
-{
-    t_object   x_obj;
-    t_glist *  x_glist;
-    t_outlet*  out1;
-    t_outlet*  out2;
-    t_outlet*  out3;
-    t_outlet*  out4;
-    t_outlet*  out5;
-    t_outlet*  out6;
-    int        canvas_width;
-    int        canvas_height;
-    t_float    canvas_x;
-    t_float    canvas_y;
-    t_element* canvas_element[MAXELEM];
-    int        canvas_numelem;
-//    t_symbol  *x_selector;
-    int        canvas_startcursor;  // relative to left of canvas
-    int        canvas_endcursor;    // relative to left of canvas
-    int        canvas_clickOrigin;
-    int        canvas_startForeground;      // absolute in element array
-    int        canvas_endForeground;        // absolute in element array
-    int        canvas_selectBackground;      // absolute in element array
-//    int        x_endbg;        // not used anymore
-    t_symbol  *array_name;
-    t_symbol  *array_raw_name;
-//    int        x_last_selected;
-    int        array_size;
-    t_garray  *array;
-    t_float    canvas_samplesPerColumn;
-    t_float    system_ksr;
-    t_float    canvas_columnTop;
-    t_float    canvas_columnBottom;
-    t_symbol  *canvas_foregroundColor;
-    t_symbol  *canvas_backgroundColor;
-    t_symbol  *canvas_foregroundSelectedColor;
-    t_symbol  *canvas_backgroundSelectedColor;
-    t_pd      *editHandle;  
-    char       canvas_foregroundTag[TAGBUFFER];
-    char       canvas_backgroundTag[TAGBUFFER];
-    char       canvas_gridTag[TAGBUFFER];
-    char       canvas_allTag[TAGBUFFER]; 
-//    char       canvas_inletTag[XLETTAGBUFFER];
-//    char       canvas_outtletTag[XLETTAGBUFFER];
-    t_canvas  *canvas;
-    int        mode;
-    t_float    outlet_outputFactor;
-    double     array_viewRefresh;
-    t_clock   *system_clock;
-    int        system_clockRunning;
-    int        canvas_mouseDown;
-    t_float    canvas_linePosition;
-    int        canvas_clipmode;
-    t_atom     outlet_mouse[3];
-    t_atom     outlet_canvas[4];
-    int        canvas_arrayViewStart;
-    int        canvas_arrayViewEnd;
-    t_float    canvas_columnGain;
-    int        array_startSelectSample;
-    int        array_endSelectSample;
-    int        mouseBound;
-} t_wavesel;
-
-// handle start
-typedef struct _waveselhandle
-{
-    t_pd       h_pd;
-    t_wavesel *h_master;
-    t_symbol  *h_bindsym;
-    char       h_pathname[TAGBUFFER];
-    char       h_outlinetag[TAGBUFFER];
-    int        h_dragon;
-    int        h_dragx;
-    int        h_dragy;
-    int        h_selectedmode;
-} t_waveselhandle;
-// handle end
-
-/*
-  cv .. canvas
-  o  .. object identifier
-  c  .. element id
-  x,y,w,h .. coordinates
-*/
-
-static void wavesel_arrayZoom(t_wavesel *x);
-static void wavesel_initbase(t_wavesel* x);
-void wavesel_drawme(t_wavesel *x, t_glist *glist, int firsttime);
-static void wavesel_draw_foreground(t_wavesel* x);
-static void wavesel_draw_columns(t_wavesel* x);
-static void wavesel_setarray(t_wavesel *x, t_symbol *s);
-static void wavesel_vis(t_gobj *z, t_glist *glist, int vis);
-static void wavesel_reset_selection(t_wavesel* x) ;
 
 static void wavesel_setmode(t_wavesel *x, t_float mode)
 {
@@ -562,6 +397,7 @@ post("vis: %d", vis);
         x->canvas_element[FRAME]->w = x->canvas_width;
         wavesel_drawme(x, glist, 1);
         if (x->array_name)
+printf("about to call wavesel_setarray(x, x->array_name)\n");
             wavesel_setarray(x, x->array_name);
     }
     else
@@ -1156,9 +992,10 @@ static void wavesel_initbase(t_wavesel* x)
     x->canvas_numelem++;
 }
   
-static void wavesel_state(t_wavesel* x) 
+static void wavesel_status(t_wavesel* x) 
 {
-    post(" --==## wavesel_state ##==--");
+    post(" --==## wavesel~ %d.%d.%d_state ##==--", MAJORVERSION, MINORVERSION, BUGFIXVERSION);
+    post("arrayname: %s",               (x->array_name) ? x->array_name->s_name : "");
     post("canvas_width: %d",            x->canvas_width);
     post("canvas_height: %d",           x->canvas_height);
     post("canvas_numelem: %d",          x->canvas_numelem);
@@ -1179,7 +1016,6 @@ static void wavesel_state(t_wavesel* x)
     post("canvas_clipmode: %d",         x->canvas_clipmode);
     post("canvas_mode: %d",             x->mode);
     post("array: %s",                  (x->array) ? "defined" : "null");
-    post("arrayname: %s",               (x->array) ? x->array_name->s_name : "");
 //    post("arrayrawname: '%s'",            x->array_raw_name->s_name);
     post("arraysize: %d",               x->array_size);
     post("array_bufRefresh: %lf",       x->array_viewRefresh);
@@ -1452,15 +1288,12 @@ t_symbol* s,              0
 * t_symbol* _bgcolor,     6
 * t_symbol* _fgselcolor,  7
 * t_symbol* _bgselcolor   8
-* 
-*     loud_floatarg(*(t_pd *)x, 0, ac, av, &width, SCOPE_MINWIDTH, 0, LOUD_CLIP | LOUD_WARN, 0, "width");
-*  t_class *c, int which, int ac, t_atom *av, t_float *vp, t_float minval, t_float maxval, 
-*    int underaction, int overaction, char *what)
-
 * ) */
 static void *wavesel_new(t_symbol *s, int ac, t_atom *av)
 {
-    int i, result;
+printf("----\nwavesel creation \n");
+//  ac, atom_getsymbol(&av[0])->s_name, atom_getfloat(&av[1]), atom_getfloat(&av[2]), atom_getfloat(&av[3]), atom_getfloat(&av[4]));
+    int i;
     t_wavesel *x = (t_wavesel *)pd_new(wavesel_class);
 
     x->x_glist = (t_glist*) canvas_getcurrent();
@@ -1472,56 +1305,67 @@ static void *wavesel_new(t_symbol *s, int ac, t_atom *av)
     for (i=0;i<MAXELEM;i++)
         x->canvas_element[i] = NULL;
     x->canvas_numelem   = 0;
-    // s
-    x->array_name = 0;
-    if (ac > 0) 
-        x->array_name = atom_getsymbol(&av[0]);
+    // 0: s
     x->array = 0;
-    // w
+    x->array_name = 0;
+    if (ac > 0) {
+        x->array_name = atom_getsymbol(&av[0]);
+printf("wavesel array: '%s'\n", x->array_name->s_name);
+    } else {
+        x->array_name = atom_getsymbol("");
+    }
+    // 1: w
     t_float width;
-    result = loud_floatarg(*(t_pd *)x, 1, ac, av, 
-        &width, WAVESEL_MINWIDTH, WAVESEL_MAXWIDTH, 
-        LOUD_WARN, LOUD_CLIP | LOUD_WARN, "width");
-    if (result == LOUD_ARGOK) 
-        x->canvas_width = (int)width;
+    if (ac > 1) 
+    {
+        width = atom_getfloat(&av[1]);
+        if (width > 0)
+            x->canvas_width = (int)width;
+printf("wavesel width: %d(%f:%f)\n", x->canvas_width, atom_getfloat(&av[1]), width);
+    }
     else
-         x->canvas_width = WAVESEL_DEFWIDTH;
-    // h
+        x->canvas_width = WAVESEL_DEFWIDTH;
+    // 2: h
     t_float height;
-    result = loud_floatarg(*(t_pd *)x, 2, ac, av, 
-        &height, WAVESEL_MINHEIGHT, WAVESEL_MAXHEIGHT, 
-        LOUD_WARN, LOUD_CLIP | LOUD_WARN, "height");
-    if (result == LOUD_ARGOK)
-        x->canvas_height = (int)height;
+    if (ac > 2) 
+    {
+        height = atom_getfloat(&av[2]);
+        if (height > 0)
+            x->canvas_height = (int)height;
+printf("wavesel height: %d(%f:%f)\n", x->canvas_height, atom_getfloat(&av[2]), height);
+    }
     else
         x->canvas_height = WAVESEL_DEFHEIGHT;
-    // _mode
+    // 3: _mode
     t_float fmode;
-    result = loud_floatarg(*(t_pd *)x, 3, ac, av, 
-        &fmode, MODE_NONE, MODE_DRAW, 
-        LOUD_WARN, LOUD_CLIP | LOUD_WARN, "mode");
-    if (result == LOUD_ARGOK)
-        x->mode = (int)fmode;
+    if (ac > 3) 
+    {
+        fmode = atom_getfloat(&av[3]);
+        if (fmode > 0)
+            x->mode = (int)fmode;
+printf("wavesel mode: %d(%f)\n", x->mode, fmode);
+    }
     else
         x->mode = MODE_NONE;
-    // _buftime
+    // 4: _buftime
     t_float buftime;
-    result = loud_floatarg(*(t_pd *)x, 4, ac, av, 
-        &buftime, 0, 0xFFFFFFFF, 
-        0, 0, "buftime");
-    if (result == LOUD_ARGOK)
-        x->array_viewRefresh = (double)buftime;
+    if (ac > 4) 
+    {
+        buftime = atom_getfloat(&av[4]);
+        if (buftime > 0)
+            x->array_viewRefresh = (double)buftime;
+printf("wavesel buftime: %lf(%f)\n", x->array_viewRefresh, buftime);
+    }
     else
-        x->array_viewRefresh = 0;
-
-//x->canvas_width = WAVESEL_MINWIDTH;
-//x->canvas_height = WAVESEL_MINHEIGHT;
-//x->mode = MODE_NONE;
-//x->array_viewRefresh = 0;
+        x->array_viewRefresh = 0.;
     
     x->system_clock = clock_new(x, (t_method)wavesel_tick); // get a clock
-    clock_delay(x->system_clock, x->array_viewRefresh); // start it
-    x->system_clockRunning = 1;
+    if (x->array_viewRefresh == 0) 
+    {
+        clock_delay(x->system_clock, x->array_viewRefresh); // start it
+        x->system_clockRunning = 1;
+    } else 
+        x->system_clockRunning = 0;
 
     x->canvas_arrayViewStart = 0;
     x->canvas_arrayViewEnd   = 0;
@@ -1535,7 +1379,7 @@ static void *wavesel_new(t_symbol *s, int ac, t_atom *av)
     x->canvas_columnGain = 1;
     wavesel_initbase(x);
     wavesel_draw_foreground(x);
-    wavesel_draw_columns(x);
+//    wavesel_draw_columns(x);
 
     x->out1 = outlet_new(&x->x_obj, &s_float);
     x->out2 = outlet_new(&x->x_obj, &s_float);
@@ -1577,6 +1421,10 @@ static void *wavesel_new(t_symbol *s, int ac, t_atom *av)
     x->mouseBound = 1;
     
     forky_setsavefn(wavesel_class, wavesel_save);
+    
+printf("wavesel creation arguments: '%s' %d %d %d %lf \n", 
+    (x->array_name) ? x->array_name->s_name : "", x->canvas_width, x->canvas_height,
+    x->mode, x->array_viewRefresh);
 
     return (x);
 }
@@ -1627,8 +1475,8 @@ void wavesel_tilde_setup(void)
         gensym("delete"), A_FLOAT, 0);
     class_addmethod(wavesel_class, (t_method)wavesel_setmode, 
         gensym("setmode"), A_FLOAT, 0);
-    class_addmethod(wavesel_class, (t_method)wavesel_state, 
-        gensym("state"), 0);
+    class_addmethod(wavesel_class, (t_method)wavesel_status, 
+        gensym("status"), 0);
     class_addmethod(wavesel_class, (t_method)wavesel_redraw_all, 
         gensym("redraw_all"), 0);
     class_addmethod(wavesel_class, (t_method)wavesel_loadbang, 
@@ -1660,8 +1508,8 @@ void wavesel_tilde_setup(void)
         A_FLOAT, A_FLOAT, 0);
 //    class_setsavefn(wavesel_class, wavesel_save);
     
-    post("wavesel~ 0.7 , a waveform~ wannabe, that isn't there yet...");
-    post("fjkraan@xs4all.nl, 2015-12-20");
+    post("wavesel~ %d.%d.%d , a waveform~ wannabe, that isn't there yet...", MAJORVERSION, MINORVERSION, BUGFIXVERSION);
+    post("fjkraan@xs4all.nl, 2016-07-29");
 }
 
 
