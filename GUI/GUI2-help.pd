@@ -1,0 +1,9 @@
+#N canvas 154 321 450 300 10;
+#X obj 186 25 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+-1;
+#X obj 186 71 GUI/GUI2;
+#X text 38 72 This is the GUI2 object:;
+#X text 26 135 The GUI2 object implements a basic outline and in/outlet
+drawing above the GUI1 functionality as well as console logging on
+most widget-events.;
+#X connect 0 0 1 0;
