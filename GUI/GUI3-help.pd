@@ -1,0 +1,19 @@
+#N canvas 1 499 450 300 10;
+#X text 38 72 This is the GUI3 object:;
+#X obj 186 73 GUI/GUI3;
+#X text 26 135 The GUI3 object is a simplified reimplememtation of
+comment.;
+#X msg 155 24 status;
+#X msg 268 23 fontsize 12;
+#X msg 349 23 fontcolorname red;
+#X msg 207 24 text foo;
+#X msg 207 4 text bar;
+#X msg 268 3 fontsize 10;
+#X msg 349 3 fontcolorname green;
+#X connect 3 0 1 0;
+#X connect 4 0 1 0;
+#X connect 5 0 1 0;
+#X connect 6 0 1 0;
+#X connect 7 0 1 0;
+#X connect 8 0 1 0;
+#X connect 9 0 1 0;
