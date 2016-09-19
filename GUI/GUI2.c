@@ -251,8 +251,9 @@ printf("----\nGUI2 setup \n");
     GUI_class = class_new(gensym("GUI2"), 
         (t_newmethod)GUI_new, 0, sizeof(t_GUI), 0, A_GIMME, 0);
 
-// GUI behaviour
+// set graphic event behaviour
     GUI_setwidget();
+// override the standard object graphic behaviour    
     class_setwidget(GUI_class, &GUI_widgetbehavior);
     
     post("GUI2 %d.%d.%d", MAJORVERSION, MINORVERSION, BUGFIXVERSION);
