@@ -239,6 +239,7 @@ printf("----\nGUI2 new \n");
     x->prevY = 0;
     x->inletCount = 1;
     x->outletCount = 1;
+    x->x_glist = (t_glist *)canvas_getcurrent();
     
     outlet_new(&x->x_obj, &s_float);
     
