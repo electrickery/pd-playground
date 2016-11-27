@@ -1,0 +1,10 @@
+#N canvas 71 266 798 405 10;
+#X obj 227 27 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+-1;
+#X obj 227 71 GUI/GUI4;
+#X text 26 135 The GUI4 object adds the zoom function to the GUI2.
+;
+#X text 38 72 This is the GUI4 object:;
+#X msg 254 26 status;
+#X connect 0 0 1 0;
+#X connect 4 0 1 0;
