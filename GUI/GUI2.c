@@ -31,13 +31,12 @@ typedef struct _GUI
 
 void GUI_drawme(t_GUI *x, t_glist *glist, int firsttime)
 {
-    int zoom = 1;
     int width  = x->canvas_width;
     int height = x->canvas_height;
     int xp1 = x->x_obj.te_xpix;
     int yp1 = x->x_obj.te_ypix;
-    int xp2 = x->x_obj.te_xpix + width * zoom;
-    int yp2 = x->x_obj.te_ypix + height * zoom;
+    int xp2 = x->x_obj.te_xpix + width;
+    int yp2 = x->x_obj.te_ypix + height;
         
     if (firsttime) {
         /* main rectangle */
@@ -110,14 +109,13 @@ static void GUI_getrect(t_gobj *z, t_glist *owner,
     int *xp1, int *yp1, int *xp2, int *yp2)
 {
     t_GUI* x = (t_GUI*)z;
-    int zoom = 1;
 
     int width  = x->canvas_width;
     int height = x->canvas_height;
     *xp1 = x->x_obj.te_xpix;
     *yp1 = x->x_obj.te_ypix;
-    *xp2 = x->x_obj.te_xpix + width * zoom;
-    *yp2 = x->x_obj.te_ypix + height * zoom;
+    *xp2 = x->x_obj.te_xpix + width;
+    *yp2 = x->x_obj.te_ypix + height;
     
     /* debug section */
     if (x->x_obj.te_xpix != x->prevX || x->x_obj.te_ypix != x->prevY) {
@@ -202,7 +200,7 @@ static int GUI_newclick(t_gobj *z, struct _glist *glist,
     int xpix, int ypix, int shift, int alt, int dbl, int doit)
 {
 printf("newclick: %d\n", doit);  
-    if (z) { } // eliminate compiler warnings
+    if (z && glist && xpix && ypix && shift && alt && dbl && doit) { } // eliminate compiler warnings
     return (1);
 }
 
@@ -229,7 +227,7 @@ static void GUI_setwidget(void)
 
 static void *GUI_new(t_symbol *s, int ac, t_atom *av)
 {
-printf("----\nGUI2 new \n");
+printf("----\n%s new \n", s->s_name);
 
     t_GUI *x = (t_GUI *)pd_new(GUI_class);
     
@@ -258,5 +256,5 @@ printf("----\nGUI2 setup \n");
     class_setwidget(GUI_class, &GUI_widgetbehavior);
     
     post("GUI2 %d.%d.%d", MAJORVERSION, MINORVERSION, BUGFIXVERSION);
-    post("fjkraan@xs4all.nl, 2016-08-07");
+    post("fjkraan@xs4all.nl, 2016-11-27");
 }
