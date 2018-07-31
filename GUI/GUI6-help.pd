@@ -1,0 +1,16 @@
+#N canvas 16 435 798 405 10;
+#X obj 227 27 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+-1;
+#X msg 254 26 status;
+#X obj 227 67 GUI6;
+#X msg 345 46 size 100 100;
+#X msg 340 25 size 50 50;
+#X text 38 72 This is the GUI6 object:;
+#X text 1 172 The GUI6 object adds cursor and keypress tracking to
+the GUI4.;
+#X obj 227 133 print;
+#X connect 0 0 2 0;
+#X connect 1 0 2 0;
+#X connect 2 0 7 0;
+#X connect 3 0 2 0;
+#X connect 4 0 2 0;

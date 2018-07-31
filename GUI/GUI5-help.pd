@@ -1,0 +1,11 @@
+#N canvas 268 292 798 405 10;
+#X obj 227 27 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+-1;
+#X obj 227 71 GUI/GUI5;
+#X text 38 72 This is the GUI5 object:;
+#X msg 254 26 status;
+#X text 1 142 The GUI5 object adds cursor and keypress tracking to
+the GUI4. The mouseup event mechanism is copied from iem_gui/iem_event
+;
+#X connect 0 0 1 0;
+#X connect 3 0 1 0;
