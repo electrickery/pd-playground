@@ -8,7 +8,7 @@ first filter. fjkraan@xs4all.nl, 2015-06-23
 
 #include "m_pd.h"
 #include "sickle/sic.h"
-//#include "shared.h"
+#include "shared.h"
 
 static t_class *teeth_class;
 
@@ -23,6 +23,12 @@ typedef struct _teeth_tilde {
   t_int      x_fbWrite;  /* relative write pointer to FB buffer */
   t_int      x_bufsize;  /* buffer size  */
   t_float    x_ksr;      /* 'kilo-samplerate', like 44.1 */
+  t_sample   x_inlet_fw_delay;
+  t_sample   x_inlet_fb_delay;
+  t_sample   x_inlet_a_gain;
+  t_sample   x_inlet_b_gain;
+  t_sample   x_inlet_c_gain;
+  t_sample   x_outlet;
 } t_teeth;
 
 /* The actual work is done here */
@@ -96,13 +102,13 @@ static void teeth_dsp(t_teeth *x, t_signal **sp)
     dsp_add(teeth_perform, 	/* register the perform method */
         9, 			/* number of following parameters */
         x,			/* pointer to the object struct */
-        sp[0]->s_vec, 	/* first inlet signal */
-        sp[1]->s_vec, 	/* fw_delay */
-        sp[2]->s_vec, 	/* fb_delay */
-        sp[3]->s_vec, 	/* a_gain */
-        sp[4]->s_vec, 	/* b_gain */
-        sp[5]->s_vec, 	/* c_gain */
-        sp[6]->s_vec, 	/* first outlet signal */
+        sp[0]->s_vec, 	        /* first inlet signal */
+        x->x_inlet_fw_delay, 	/* fw_delay */
+        x->x_inlet_fb_delay, 	/* fb_delay */
+        x->x_inlet_a_gain, 	/* a_gain */
+        x->x_inlet_b_gain, 	/* b_gain */
+        x->x_inlet_c_gain, 	/* c_gain */
+        x->x_outlet, 	        /* first outlet signal */
         sp[0]->s_n);		/* the size of the vectors/arrays */
 }
 
@@ -113,14 +119,14 @@ static void *teeth_new(t_floatarg a_gain, t_floatarg b_gain,
     x->x_bufsize = 0;
   
     /* create signal inlets */
-    sic_newinlet((t_sic *)x, fw_delay);
-    sic_newinlet((t_sic *)x, fb_delay);
-    sic_newinlet((t_sic *)x, a_gain);
-    sic_newinlet((t_sic *)x, b_gain);
-    sic_newinlet((t_sic *)x, c_gain);
+    x->x_inlet_fw_delay = sic_newinlet((t_sic *)x, fw_delay);
+    x->x_inlet_fb_delay = sic_newinlet((t_sic *)x, fb_delay);
+    x->x_inlet_a_gain   = sic_newinlet((t_sic *)x, a_gain);
+    x->x_inlet_b_gain   = sic_newinlet((t_sic *)x, b_gain);
+    x->x_inlet_c_gain   = sic_newinlet((t_sic *)x, c_gain);
     
     /* create a signal outlet */
-    outlet_new(&x->x_obj, &s_signal);
+    x->x_outlet         = outlet_new(&x->x_obj, &s_signal);
   
     return (void *)x;
 }
