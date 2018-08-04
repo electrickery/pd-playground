@@ -1,0 +1,30 @@
+#N canvas 22 559 450 300 10;
+#N canvas 337 247 450 300 subPatch 0;
+#X obj 251 16 inlet;
+#X obj 8 224 outlet;
+#X obj 190 229 outlet;
+#X obj 87 109 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+-1;
+#X obj 3 2 mouseCanvas/mouseCanvas 1;
+#X connect 0 0 4 0;
+#X connect 4 0 3 0;
+#X connect 4 0 1 0;
+#X connect 4 1 2 0;
+#X coords 0 -1 1 1 105 105 2 3 4;
+#X restore 41 33 pd subPatch;
+#X obj 198 166 route inside outside;
+#X obj 198 205 print dif;
+#X obj 41 168 route inside outside;
+#X obj 41 207 print rel;
+#X msg 338 68 status;
+#X obj 117 209 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144
+-1 -1;
+#X obj 54 231 bng 15 250 50 0 empty empty empty 17 7 0 10 -262144 -1
+-1;
+#X connect 0 0 3 0;
+#X connect 0 1 1 0;
+#X connect 1 0 2 0;
+#X connect 3 0 4 0;
+#X connect 3 0 7 0;
+#X connect 3 1 6 0;
+#X connect 5 0 0 0;
