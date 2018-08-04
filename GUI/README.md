@@ -12,6 +12,10 @@
 
 <p>GUI4 is GUI2 but with zoom functionality (and some refactoring added)</p>
 
+<p>GUI5 adds mouse control via the widgetbehaviour functionality (limited mouseup)</p>
+
+<p>GUI6 adds better mouse control via the pd_bind proxy method</p>
+
 <p>The original location of the Git repository is https://github.com/electrickery/pd-playground/tree/master/GUI</p>
 
-<p>fjkraan@xs4all.nl, 2016-11-27</p>
+<p>fjkraan@xs4all.nl, 2018-08-04</p>
